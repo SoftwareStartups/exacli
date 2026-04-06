@@ -12,10 +12,10 @@ let client: ReturnType<typeof createClient>;
 function mockProcessExit() {
   let exitCalled = false;
   const originalExit = process.exit;
-  process.exit = function () {
+  process.exit = (() => {
     exitCalled = true;
     throw new Error('process.exit called');
-  } as unknown as (code?: number) => never;
+  }) as unknown as (code?: number) => never;
   return {
     originalExit,
     restore: () => {
