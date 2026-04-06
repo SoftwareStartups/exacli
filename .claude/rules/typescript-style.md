@@ -8,4 +8,4 @@ paths:
 - No default exports — named exports only
 - Prefer `interface` over `type` for object shapes
 - Export types alongside the functions that consume them
-- Run `task check` (lint + format + typecheck) before committing
+- Run `task check` (lint + typecheck + tests) before committing

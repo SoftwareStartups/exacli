@@ -39,7 +39,7 @@ export function isValidSearchType(value: unknown): value is string {
 }
 
 export function isValidAnswerModel(value: unknown): value is string {
-  const validModels = ['ex', 'exa-pro'];
+  const validModels = ['exa', 'exa-pro'];
   return typeof value === 'string' && validModels.includes(value);
 }
 

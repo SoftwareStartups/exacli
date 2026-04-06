@@ -174,6 +174,7 @@ exacli/
 │   ├── index.ts              # CLI entry point
 │   ├── client.ts             # Exa SDK wrapper
 │   ├── commands/
+│   │   ├── types.ts          # Command arg interfaces and shared types
 │   │   ├── search.ts         # Web search
 │   │   ├── contents.ts       # URL content extraction
 │   │   ├── similar.ts        # Similar page discovery
@@ -182,6 +183,7 @@ exacli/
 │   ├── formatters/
 │   │   └── markdown.ts       # Output formatting
 │   └── utils/
+│       ├── commands.ts       # Shared command helpers
 │       └── validation.ts     # Input validation
 ├── tests/                    # Test files
 ├── build/                    # Compiled output (generated)

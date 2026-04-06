@@ -72,7 +72,7 @@ Search Options:
   --autoprompt             Use autoprompt
 
 Answer Options:
-  --model <ex|exa-pro>      Model to use
+  --model <exa|exa-pro>      Model to use
   --stream                 Stream the response
   --system-prompt <text>   System prompt
 
@@ -187,7 +187,7 @@ async function main() {
     case 'answer': {
       requireArgs(args, 'answer', 'a query argument');
       if (commandArgs.model && !isValidAnswerModel(commandArgs.model)) {
-        console.error('Error: --model must be one of: ex, exa-pro');
+        console.error('Error: --model must be one of: exa, exa-pro');
         process.exit(1);
       }
       const query = args.join(' ');

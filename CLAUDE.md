@@ -14,7 +14,7 @@ task clean                           # Remove build/ and dist/
 task lint                            # Lint with Biome
 task format                          # Format with Biome (write)
 task test                            # Run tests (bun test)
-task check                           # Lint + typecheck + tests (parallel)
+task check                           # Lint + typecheck + tests
 
 # Pipelines
 task ci                              # Full CI locally: clean -> install -> format:check -> check -> build
