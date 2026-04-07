@@ -10,7 +10,8 @@
   },
   "files": [
     "build",
-    "README.md"
+    "README.md",
+    "!build/**/*.map"
   ],
   "scripts": {
     "build": "tsc",
@@ -20,7 +21,7 @@
     "lint": "bunx biome lint .",
     "typecheck": "tsc --noEmit -p tsconfig.check.json",
     "test": "bun test",
-    "postinstall": "lefthook install"
+    "prepare": "lefthook install || true"
   },
   "repository": {
     "type": "git",

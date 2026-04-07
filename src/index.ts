@@ -10,6 +10,7 @@ import * as similar from './commands/similar.js';
 import * as answer from './commands/answer.js';
 import * as research from './commands/research.js';
 import * as auth from './commands/auth.js';
+import * as format from './formatters/markdown.js';
 import { readApiKeyFromConfig } from './utils/config.js';
 import type {
   SearchCommandArgs,
@@ -297,6 +298,6 @@ function requireArgs(
 }
 
 main().catch((error) => {
-  console.error('Fatal error:', error);
+  console.error(format.formatError(error));
   process.exit(1);
 });
