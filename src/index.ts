@@ -9,6 +9,8 @@ import * as contents from './commands/contents.js';
 import * as similar from './commands/similar.js';
 import * as answer from './commands/answer.js';
 import * as research from './commands/research.js';
+import * as auth from './commands/auth.js';
+import { readApiKeyFromConfig } from './utils/config.js';
 import type {
   SearchCommandArgs,
   SimilarCommandArgs,
@@ -51,12 +53,17 @@ Commands:
   research <instructions>   Create a research task
   research-status <id>      Check research task status
   research-list             List research tasks
+  login                    Store API key locally
+  logout                   Remove stored API key
 
 Global Options:
   --api-key <key>          Exa API key (or EXA_API_KEY env var)
   --json                   Output raw JSON instead of markdown
   --version                Show version information
   -h, --help              Show this help message
+
+Authentication Options:
+  --skip-validation        Skip API key validation on login
 
 Search Options:
   --num-results <n>        Number of results (default: 10)
@@ -122,6 +129,7 @@ async function main() {
       cursor: { type: 'string' },
       'exclude-source-domain': { type: 'boolean' },
       'max-age-hours': { type: 'string' },
+      'skip-validation': { type: 'boolean' },
     },
     strict: false,
     allowPositionals: true,
@@ -137,10 +145,23 @@ async function main() {
     process.exit(0);
   }
 
-  const client = createClient(resolveApiKey(values));
   const command = positionals[0];
   const args = positionals.slice(1);
   const commandArgs: Record<string, unknown> = { ...values };
+
+  // Commands that don't require a client
+  switch (command) {
+    case 'login': {
+      await auth.login(commandArgs as unknown as auth.LoginArgs);
+      return;
+    }
+    case 'logout': {
+      await auth.logout();
+      return;
+    }
+  }
+
+  const client = createClient(resolveApiKey(values));
 
   switch (command) {
     case 'search': {
@@ -245,14 +266,23 @@ async function main() {
 }
 
 function resolveApiKey(values: Record<string, unknown>): string {
-  const apiKey = values['api-key'] || process.env.EXA_API_KEY;
-  if (!apiKey || typeof apiKey !== 'string') {
-    console.error(
-      'Error: EXA_API_KEY not set. Use --api-key or set EXA_API_KEY environment variable.'
-    );
-    process.exit(1);
+  if (values['api-key'] && typeof values['api-key'] === 'string') {
+    return values['api-key'];
   }
-  return apiKey;
+
+  if (process.env.EXA_API_KEY) {
+    return process.env.EXA_API_KEY;
+  }
+
+  const configKey = readApiKeyFromConfig();
+  if (configKey) {
+    return configKey;
+  }
+
+  console.error(
+    'Error: EXA_API_KEY not set. Use "exacli login", --api-key, or set EXA_API_KEY environment variable.'
+  );
+  process.exit(1);
 }
 
 function requireArgs(
