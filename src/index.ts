@@ -8,9 +8,10 @@ import * as contents from './commands/contents.js';
 import * as similar from './commands/similar.js';
 import * as answer from './commands/answer.js';
 import * as research from './commands/research.js';
-import * as auth from './commands/auth.js';
+import { getSecret } from './auth/keychain.js';
+import * as loginCmd from './cli/commands/login.js';
+import * as logoutCmd from './cli/commands/logout.js';
 import * as format from './formatters/markdown.js';
-import { readApiKeyFromConfig } from './utils/config.js';
 import type {
   SearchCommandArgs,
   SimilarCommandArgs,
@@ -140,16 +141,16 @@ async function main() {
   // Commands that don't require a client
   switch (command) {
     case 'login': {
-      await auth.login(commandArgs as unknown as auth.LoginArgs);
+      await loginCmd.login(commandArgs as unknown as loginCmd.LoginArgs);
       return;
     }
     case 'logout': {
-      await auth.logout();
+      await logoutCmd.logout();
       return;
     }
   }
 
-  const client = createClient(resolveApiKey(values));
+  const client = createClient(await resolveApiKey(values));
 
   switch (command) {
     case 'search': {
@@ -253,7 +254,7 @@ async function main() {
   }
 }
 
-function resolveApiKey(values: Record<string, unknown>): string {
+async function resolveApiKey(values: Record<string, unknown>): Promise<string> {
   if (values['api-key'] && typeof values['api-key'] === 'string') {
     return values['api-key'];
   }
@@ -262,13 +263,13 @@ function resolveApiKey(values: Record<string, unknown>): string {
     return process.env.EXA_API_KEY;
   }
 
-  const configKey = readApiKeyFromConfig();
-  if (configKey) {
-    return configKey;
+  const keychainKey = await getSecret('EXA_API_KEY');
+  if (keychainKey) {
+    return keychainKey;
   }
 
   console.error(
-    'Error: EXA_API_KEY not set. Use "exacli login", --api-key, or set EXA_API_KEY environment variable.'
+    'Error: No API key found. Run "exacli login", use --api-key, or set EXA_API_KEY environment variable.'
   );
   process.exit(1);
 }

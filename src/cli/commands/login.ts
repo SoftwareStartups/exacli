@@ -1,17 +1,8 @@
-/**
- * Authentication commands (login/logout)
- */
-
 import * as readline from 'node:readline';
 import { Writable } from 'node:stream';
-import { createClient } from '../client.js';
-import * as format from '../formatters/markdown.js';
-import {
-  writeConfig,
-  deleteConfig,
-  readConfig,
-  getConfigPath,
-} from '../utils/config.js';
+import { sanitizeCredential, setSecret } from '../../auth/keychain.js';
+import { createClient } from '../../client.js';
+import * as format from '../../formatters/markdown.js';
 
 export interface LoginArgs {
   'api-key'?: string;
@@ -19,17 +10,20 @@ export interface LoginArgs {
 }
 
 export async function login(args: LoginArgs): Promise<void> {
-  const apiKey = args['api-key'] || (await promptForApiKey());
+  const raw = args['api-key'] || (await promptForApiKey());
 
-  if (!apiKey || apiKey.trim().length === 0) {
-    console.error('Error: API key cannot be empty.');
+  let apiKey: string;
+  try {
+    apiKey = sanitizeCredential(raw);
+  } catch (err: unknown) {
+    console.error(
+      `Error: ${err instanceof Error ? err.message : 'Invalid credential.'}`
+    );
     process.exit(1);
   }
 
-  const trimmedKey = apiKey.trim();
-
   if (args['skip-validation'] !== true) {
-    const valid = await validateApiKey(trimmedKey);
+    const valid = await validateApiKey(apiKey);
     if (!valid) {
       console.error(
         'Warning: Could not validate API key. The key may be invalid or the API may be unreachable.'
@@ -38,24 +32,16 @@ export async function login(args: LoginArgs): Promise<void> {
     }
   }
 
-  writeConfig({ api_key: trimmedKey });
-  console.log(format.formatSuccess(`API key saved to ${getConfigPath()}`));
-}
-
-export async function logout(): Promise<void> {
-  const config = readConfig();
-  if (!config) {
-    console.log('No stored API key found. Already logged out.');
-    return;
-  }
-
-  const removed = deleteConfig();
-  if (removed) {
-    console.log(format.formatSuccess('API key removed.'));
-  } else {
-    console.error('Error: Failed to remove config file.');
+  try {
+    await setSecret('EXA_API_KEY', apiKey);
+  } catch {
+    console.error(
+      'Error: OS keychain not available. Set EXA_API_KEY environment variable instead.'
+    );
     process.exit(1);
   }
+
+  console.log(format.formatSuccess('API key saved to OS keychain.'));
 }
 
 async function promptForApiKey(): Promise<string> {
@@ -79,10 +65,10 @@ async function promptForApiKey(): Promise<string> {
   });
 
   return new Promise<string>((resolve) => {
-    process.stdout.write('Enter your Exa API key: ');
+    process.stderr.write('Enter your Exa API key: ');
     rl.question('', (answer) => {
       rl.close();
-      process.stdout.write('\n');
+      process.stderr.write('\n');
       resolve(answer);
     });
   });
