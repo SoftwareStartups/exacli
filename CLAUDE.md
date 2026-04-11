@@ -2,6 +2,12 @@
 
 Bun-native TypeScript CLI for Exa AI search API. Semantic search, content extraction, AI answers, and automated research.
 
+## Environment Variables
+
+| Variable | Purpose |
+|----------|---------|
+| `EXA_API_KEY` | Exa API key (or use --api-key flag) |
+
 ## Commands
 
 ```bash
@@ -21,7 +27,7 @@ task ci                              # Full CI locally: clean -> install -> form
 
 # Release
 task compile                         # Build standalone binary for current platform
-task compile:all                     # Build binaries for all 4 platforms
+task compile:all                     # Build binaries for all 6 platforms
 ```
 
 ## Architecture
@@ -48,16 +54,3 @@ tests/
 ├── commands.test.ts
 └── e2e.test.ts
 ```
-
-## Code Style
-
-- TypeScript strict mode, ES2022 target, NodeNext modules
-- Biome for linting/formatting (indent 2, single quotes, semicolons, trailing commas es5)
-- Bun runtime
-- Default output is markdown; `--json` flag switches to raw JSON
-
-## Environment Variables
-
-| Variable | Purpose |
-|----------|---------|
-| `EXA_API_KEY` | Exa API key (or use --api-key flag) |
