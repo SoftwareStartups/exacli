@@ -1,5 +1,5 @@
 {
-  "name": "exacli",
+  "name": "@softwarestartups/exacli",
   "version": "1.1.2",
   "description": "A CLI tool for Exa AI search API",
   "type": "module",
