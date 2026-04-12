@@ -9,7 +9,7 @@ Format: `uses: owner/action@<full-sha>  # v1.2.3`
 Resolve latest version and SHA:
 
 ```bash
-for repo in actions/checkout DeterminateSystems/nix-installer-action DeterminateSystems/magic-nix-cache-action; do
+for repo in actions/checkout cachix/install-nix-action nix-community/cache-nix-action; do
   tag=$(gh api "repos/$repo/releases/latest" --jq '.tag_name')
   ref=$(gh api "repos/$repo/git/ref/tags/$tag" --jq '.object')
   type=$(echo "$ref" | jq -r '.type')
@@ -26,8 +26,8 @@ done
 - Triggers: push to any branch
 - Permissions: `contents: read`, `id-token: write`
 - Jobs: lint → test → build
-- Uses `DeterminateSystems/nix-installer-action` to install Nix with flakes enabled
-- Uses `DeterminateSystems/magic-nix-cache-action` for zero-config GitHub Actions cache
+- Uses `cachix/install-nix-action` to install upstream Nix with flakes enabled
+- Uses `nix-community/cache-nix-action` for GitHub Actions cache (keyed on `flake.nix` + `flake.lock`)
 - All commands run via `nix develop --command <cmd>` — Go and Task come from `flake.nix`
 - Task commands: `task lint` (`go vet ./...`), `task test` (`go test ./...`), `task build`
 
