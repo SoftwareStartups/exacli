@@ -29,7 +29,7 @@ jobs:
 
       - name: Format check
         run: |
-          unformatted=$(nix develop --command gofmt -l .)
+          unformatted=$(nix develop --command gofmt -l . | grep '\.go$')
           if [ -n "$unformatted" ]; then
             echo "Unformatted files:"
             echo "$unformatted"

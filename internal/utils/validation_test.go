@@ -7,9 +7,9 @@ import (
 
 func TestParseNumber(t *testing.T) {
 	cases := []struct {
-		name  string
-		input string
-		wantN int
+		name   string
+		input  string
+		wantN  int
 		wantOK bool
 	}{
 		{"positive integer", "42", 42, true},
