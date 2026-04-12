@@ -20,9 +20,6 @@ dist/
 .env
 .env.*
 
-# Lefthook
-lefthook-local.yml
-
 # Worktrees
 .worktrees/
 

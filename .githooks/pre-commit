@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -e
+
+staged=$(git diff --cached --name-only --diff-filter=d | grep '\.go$' || true)
+
+if [ -n "$staged" ]; then
+  unformatted=$(echo "$staged" | xargs gofmt -l)
+  if [ -n "$unformatted" ]; then
+    echo "Run gofmt on these files before committing:"
+    echo "$unformatted"
+    exit 1
+  fi
+fi
+
+go vet ./...
