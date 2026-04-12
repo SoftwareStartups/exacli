@@ -82,22 +82,16 @@ Exacli ships with pre-built skill files under `guides/` that let AI coding assis
 ### Claude Code
 
 ```bash
-cp -r guides/.claude /path/to/your/project/
+cp -r guides/.claude/skills/exacli /path/to/your/project/
 ```
 
 This places the skill at `.claude/skills/exacli/SKILL.md`, which Claude Code discovers automatically.
-
-For a global install (available in all projects):
-
-```bash
-cp -r guides/.claude ~/.claude/
-```
 
 ### Other tools
 
 | Tool | What to copy | Destination |
 |------|-------------|-------------|
-| **opencode** | `SKILL.md` | `.opencode/skills/exacli/SKILL.md` |
+| **opencode** | `SKILL.md` | `.opencode/skill/exacli/SKILL.md` |
 | **Cursor** | `SKILL.md` | `.cursor/rules/exacli.mdc` (or append to `.cursorrules`) |
 
 The YAML frontmatter (`name`, `description`) at the top of `SKILL.md` is used by tools that support it and safely ignored by those that don't.
@@ -108,13 +102,7 @@ The YAML frontmatter (`name`, `description`) at the top of `SKILL.md` is used by
 
 ### API Key
 
-Set your Exa API key as an environment variable:
-
-```bash
-export EXA_API_KEY="your-api-key-here"
-```
-
-Or store it securely in your OS keychain:
+Store it securely in your OS keychain:
 
 ```bash
 exacli login
@@ -258,33 +246,6 @@ task compile                         # CGO_ENABLED=0 binary for current platform
 task compile:all                     # Binaries for all 8 platforms -> dist/
 task compile:native                  # Platform-suffixed binary -> dist/exacli-<os>-<arch>
 task clean                           # Remove build/ and dist/
-```
-
-## Project Structure
-
-```
-exacli/
-├── cmd/exacli/
-│   └── main.go               # Entry point — calls commands.Execute()
-├── internal/
-│   ├── client/
-│   │   └── client.go         # Exa HTTP client (all endpoints, SSE streaming, polling)
-│   ├── commands/
-│   │   ├── root.go           # Cobra root command, global flags, ResolveAPIKey()
-│   │   ├── search.go         # search <query>
-│   │   ├── contents.go       # contents <url...>
-│   │   ├── similar.go        # similar <url>
-│   │   ├── answer.go         # answer <query> (+ --stream SSE)
-│   │   ├── research.go       # research / research-status / research-list
-│   │   └── auth.go           # login / logout (OS keychain via go-keyring)
-│   ├── formatters/
-│   │   └── formatters.go     # Markdown, JSON, TOON output formatting
-│   └── utils/
-│       └── validation.go     # Input validation (URLs, search types, models)
-├── archive/                  # TypeScript source (archived)
-├── build/                    # Compiled output (generated)
-├── dist/                     # Standalone binaries (generated)
-└── go.mod
 ```
 
 ## License
