@@ -1,101 +1,68 @@
 version: "3"
 
 tasks:
-  install:
-    desc: Install dependencies
-    cmd: bun install
-
   build:
-    desc: Build TypeScript
+    desc: Build Go binary
     cmds:
-      - bun run build
+      - go build -o build/exacli ./cmd/exacli
 
   clean:
     desc: Remove build artifacts
     cmd: rm -rf build/ dist/
 
-  format:
-    desc: Format with Biome
-    cmds:
-      - bun run format
-
-  format:check:
-    desc: Check formatting
-    cmds:
-      - bun run format:check
-
   lint:
-    desc: Lint with Biome
+    desc: Lint Go code
     cmds:
-      - bun run lint
-
-  typecheck:
-    desc: Type-check with TypeScript
-    cmds:
-      - bun run typecheck
+      - go vet ./...
 
   test:
     desc: Run tests
     cmds:
-      - bun test
+      - go test ./...
 
   check:
-    desc: Run lint, typecheck, and tests
-    deps: [lint, typecheck]
+    desc: Run lint and tests
     cmds:
+      - task: lint
       - task: test
 
   compile:
-    desc: Compile to standalone binary
+    desc: Compile optimized binary for current platform
     cmds:
       - mkdir -p dist
+      - CGO_ENABLED=0 go build -ldflags="-s -w" -o dist/exacli ./cmd/exacli
+
+  compile:all:
+    desc: Compile for all platforms
+    cmds:
       - |
-        [ -f bunfig.toml ] && mv bunfig.toml bunfig.toml.bak && trap 'mv bunfig.toml.bak bunfig.toml' EXIT
-        bun build src/index.ts --compile --outfile dist/exacli
+        mkdir -p dist
+        CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/exacli-linux-x64 ./cmd/exacli
+        CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o dist/exacli-linux-arm64 ./cmd/exacli
+        CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -extldflags=-static" -o dist/exacli-linux-x64-musl ./cmd/exacli
+        CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -extldflags=-static" -o dist/exacli-linux-arm64-musl ./cmd/exacli
+        CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/exacli-darwin-x64 ./cmd/exacli
+        CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/exacli-darwin-arm64 ./cmd/exacli
+        CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist/exacli-windows-x64.exe ./cmd/exacli
+        CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -ldflags="-s -w" -o dist/exacli-windows-arm64.exe ./cmd/exacli
 
   compile:native:
-    desc: Compile for the current platform with platform-suffixed output (e.g. dist/exacli-darwin-arm64)
+    desc: Compile for the current platform with platform-suffixed output
     cmds:
-      - mkdir -p dist
       - |
+        mkdir -p dist
         OS=$(uname -s | tr '[:upper:]' '[:lower:]')
         ARCH=$(uname -m)
         case "$ARCH" in
           x86_64) ARCH="x64" ;;
           aarch64|arm64) ARCH="arm64" ;;
         esac
-        [ -f bunfig.toml ] && mv bunfig.toml bunfig.toml.bak && trap 'mv bunfig.toml.bak bunfig.toml' EXIT
-        bun build src/index.ts --compile --outfile "dist/exacli-${OS}-${ARCH}"
+        CGO_ENABLED=0 go build -ldflags="-s -w" -o "dist/exacli-${OS}-${ARCH}" ./cmd/exacli
         echo "Built: dist/exacli-${OS}-${ARCH}"
-
-  compile:all:
-    desc: Compile for all platforms (see PLATFORMS.md)
-    cmds:
-      - mkdir -p dist
-      - |
-        [ -f bunfig.toml ] && mv bunfig.toml bunfig.toml.bak && trap 'mv bunfig.toml.bak bunfig.toml' EXIT
-        bun build src/index.ts --compile --target=bun-linux-x64 --outfile dist/exacli-linux-x64
-        bun build src/index.ts --compile --target=bun-linux-arm64 --outfile dist/exacli-linux-arm64
-        bun build src/index.ts --compile --target=bun-linux-x64-musl --outfile dist/exacli-linux-x64-musl
-        bun build src/index.ts --compile --target=bun-linux-arm64-musl --outfile dist/exacli-linux-arm64-musl
-        bun build src/index.ts --compile --target=bun-darwin-x64 --outfile dist/exacli-darwin-x64
-        bun build src/index.ts --compile --target=bun-darwin-arm64 --outfile dist/exacli-darwin-arm64
-        bun build src/index.ts --compile --target=bun-windows-x64 --outfile dist/exacli-windows-x64.exe
-        bun build src/index.ts --compile --target=bun-windows-arm64 --outfile dist/exacli-windows-arm64.exe
 
   ci:
     desc: Run full CI pipeline locally
     cmds:
       - task: clean
-      - task: install
-      - task: format:check
       - task: check
       - task: build
-
-  all:
-    desc: Run full build pipeline
-    cmds:
-      - task: clean
-      - task: install
-      - task: build
-      - task: check
