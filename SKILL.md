@@ -7,7 +7,7 @@ description: Exa AI search API via CLI. Activate when user wants to search the w
 
 ## Rules
 
-1. Always use `--json` and pipe through `jq` to keep context small
+1. Match output format to context: use default for metadata-only results, `--toon` when fetching content, `--json` only when piping to `jq`
 2. Set `EXA_API_KEY` env var before use (or run `exacli login` to store in OS keychain)
 3. Use `--text` to include full content, `--highlights` for snippets
 4. Use `--poll` with research tasks to wait for results
@@ -29,14 +29,24 @@ Resolution order: `--api-key` flag → `EXA_API_KEY` env var → OS keychain
 
 ## Output Modes
 
-| Flag | Format | Use for |
-|------|--------|---------|
-| _(none)_ | Formatted markdown | Human-readable output |
-| `--json` | Raw API JSON | Scripting, piping through `jq` |
-| `--toon` | Compact TOON format | Minimal token output |
+Measured on 10 results with no content flags (`--text`/`--highlights`/`--summary` off):
+
+| Flag | Chars | Est. tokens | Best for |
+|------|-------|-------------|----------|
+| _(none)_ | ~3,300 | ~830 | Agent contexts with metadata only — omits null/empty fields |
+| `--toon` | ~4,200 | ~1,050 | Agent contexts with content — flat `key: value`, no formatting overhead |
+| `--json` | ~5,000 | ~1,250 | Scripting only — most verbose due to null fields + structural chars |
+
+**Key insight:** `--json` is ~50% larger than the default for the same data because it includes `"highlights": null`, `"highlightScores": null`, `"text": ""`, `"summary": ""` on every result. Prefer default or `--toon` to keep context small; reach for `--json` only when piping to `jq`.
 
 ```bash
-# Keep context small: pipe JSON through jq
+# Metadata-only: default is most compact
+exacli search "query"
+
+# With content: --toon is most compact
+exacli search "query" --text --toon
+
+# Scripting: --json when you need jq field extraction
 exacli search "query" --json | jq '.results[] | {title, url}'
 exacli research-status "task-id" --json | jq '{status, output}'
 ```

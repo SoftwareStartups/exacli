@@ -4,6 +4,10 @@ A Go CLI for the [Exa AI](https://exa.ai) search API. Search the web semanticall
 
 > **Attribution:** Based on [exa-cli](https://github.com/sandiiarov/exa-cli) by Alex Sandiiarov. Now maintained by [wesbragagt](https://github.com/wesbragagt).
 
+## Why Go?
+
+The original project was written in TypeScript and required Bun to run. I kept running into segfaults when trying to use it inside a sandboxed harness, which was the final push to rewrite it. Go produces a single statically linked binary with no runtime dependencies — small enough to drop anywhere, and easy to cross-compile for Linux, macOS, and Windows from one machine (`task compile:all`). Honestly, I'm also just biased — Go is my favorite way to build CLIs.
+
 ## What is it?
 
 `exacli` is a command-line tool that communicates with the Exa AI search API. It can be used standalone or through Claude Code to:
@@ -196,6 +200,33 @@ exacli logout
 | `--toon` | Output compact TOON format |
 | `--version` | Show version information |
 | `-h, --help` | Show help message |
+
+### Output Format Trade-offs
+
+The three formats make different token/size trade-offs that matter when output flows into an AI context window.
+
+Measured on a 10-result metadata-only search (no `--text`, `--highlights`, `--summary`):
+
+| Format | Characters | Est. tokens | When to use |
+|--------|-----------|-------------|-------------|
+| Default (markdown) | ~3,300 | ~830 | Best baseline — omits null/empty fields entirely |
+| `--toon` | ~4,200 | ~1,050 | Includes empty fields as flat `key: value` pairs |
+| `--json` | ~5,000 | ~1,250 | Most verbose — includes all nulls + structural overhead |
+
+**Why JSON is largest:** every result carries `"highlights": null`, `"highlightScores": null`, `"text": ""`, and `"summary": ""` even when empty, plus JSON structural characters (quotes, brackets, commas on every key).
+
+**Why default markdown is smallest for sparse results:** the formatter skips null and empty fields entirely, emitting only populated data.
+
+**When the ranking shifts:** once results include actual content (`--text`, `--highlights`, `--summary`), `--toon` becomes the most compact option because it uses flat `key: value` lines with no markdown formatting overhead (no section headers, no bold labels per field).
+
+**Recommendations:**
+
+| Use case | Best format |
+|----------|-------------|
+| AI agent, metadata only | Default (markdown) |
+| AI agent, with content | `--toon` |
+| Scripting / field extraction | `--json \| jq` |
+| Human reading | Default (markdown) |
 
 ## Development
 
