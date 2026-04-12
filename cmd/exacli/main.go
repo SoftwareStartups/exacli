@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/SoftwareStartups/exacli/internal/commands"
+	"github.com/wesbragagt/exacli/internal/commands"
 )
 
 var Version = "dev"

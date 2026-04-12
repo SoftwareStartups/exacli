@@ -1,8 +1,8 @@
 # Exacli
 
-A Go CLI for the [Exa AI](https://exa.ai) search API. Search the web semantically, extract content from URLs, get AI-powered answers with citations, and conduct automated research — all from your terminal. Statically linked, zero runtime dependencies.
+A Go CLI for the [Exa AI](https://exa.ai) search API. Search the web semantically, extract content from URLs, get AI-powered answers with citations, and conduct automated research — all from your terminal. Statically linked, no external package dependencies.
 
-> **Attribution:** Based on [exa-cli](https://github.com/sandiiarov/exa-cli) by Alex Sandiiarov. Now maintained by [SoftwareStartups](https://github.com/SoftwareStartups).
+> **Attribution:** Based on [exa-cli](https://github.com/sandiiarov/exa-cli) by Alex Sandiiarov. Now maintained by [wesbragagt](https://github.com/wesbragagt).
 
 ## What is it?
 
@@ -21,13 +21,13 @@ A Go CLI for the [Exa AI](https://exa.ai) search API. Search the web semanticall
 If you have [Nix](https://nixos.org) installed, you can run exacli directly without any other prerequisites:
 
 ```bash
-nix run github:SoftwareStartups/exacli -- search "latest AI news"
+nix run github:wesbragagt/exacli -- search "latest AI news"
 ```
 
 Or install it into your profile:
 
 ```bash
-nix profile install github:SoftwareStartups/exacli
+nix profile install github:wesbragagt/exacli
 ```
 
 ### From Source
@@ -35,7 +35,7 @@ nix profile install github:SoftwareStartups/exacli
 Prerequisites: [Go 1.21+](https://go.dev/dl/) and [Task](https://taskfile.dev)
 
 ```bash
-git clone https://github.com/SoftwareStartups/exacli.git
+git clone https://github.com/wesbragagt/exacli.git
 cd exacli
 go mod download
 task build

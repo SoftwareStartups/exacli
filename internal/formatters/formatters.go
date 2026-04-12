@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SoftwareStartups/exacli/internal/client"
+	"github.com/wesbragagt/exacli/internal/client"
 )
 
 const (

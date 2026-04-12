@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/SoftwareStartups/exacli/internal/client"
 	"github.com/spf13/cobra"
+	"github.com/wesbragagt/exacli/internal/client"
 	"github.com/zalando/go-keyring"
 )
 

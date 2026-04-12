@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/SoftwareStartups/exacli/internal/client"
+	"github.com/wesbragagt/exacli/internal/client"
 )
 
 // ---------------------------------------------------------------------------

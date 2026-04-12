@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/SoftwareStartups/exacli/internal/client"
-	"github.com/SoftwareStartups/exacli/internal/formatters"
 	"github.com/spf13/cobra"
+	"github.com/wesbragagt/exacli/internal/client"
+	"github.com/wesbragagt/exacli/internal/formatters"
 )
 
 var validAnswerModels = map[string]bool{

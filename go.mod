@@ -1,4 +1,4 @@
-module github.com/SoftwareStartups/exacli
+module github.com/wesbragagt/exacli
 
 go 1.25.5
 

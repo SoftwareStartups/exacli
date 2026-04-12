@@ -10,7 +10,7 @@ Exacli is a command-line interface for the Exa AI search API. Written in Go with
 
 ```bash
 # Build from source (requires Go 1.21+ and Task)
-git clone https://github.com/SoftwareStartups/exacli.git
+git clone https://github.com/wesbragagt/exacli.git
 cd exacli
 go mod download
 task build
@@ -204,9 +204,9 @@ task compile     # Optimized binary -> dist/exacli
 
 ## Documentation
 
-- [README](https://github.com/SoftwareStartups/exacli#readme): Full documentation
+- [README](https://github.com/wesbragagt/exacli#readme): Full documentation
 - [Exa API Docs](https://exa.ai/docs): Official Exa API documentation
-- [Issues](https://github.com/SoftwareStartups/exacli/issues): Report bugs or request features
+- [Issues](https://github.com/wesbragagt/exacli/issues): Report bugs or request features
 
 ---
 
