@@ -71,6 +71,20 @@ task build
 sudo cp build/exacli /usr/local/bin/
 ```
 
+## Use with AI Assistants
+
+Exacli ships with a canonical skill file (`SKILL.md`) that lets AI coding assistants invoke exacli commands on your behalf. Copy the file to the location your tool expects, then make sure `EXA_API_KEY` is set in your environment — no edits to the skill file are needed.
+
+| Tool | Placement path |
+|------|---------------|
+| **Claude Code** | `.claude/skills/exacli/SKILL.md` |
+| **opencode** | `.opencode/skills/exacli/SKILL.md` |
+| **Cursor** | `.cursor/rules/exacli.mdc` (or append to `.cursorrules`) |
+
+The YAML frontmatter (`name`, `description`) at the top of `SKILL.md` is used by tools that support it and safely ignored by those that don't.
+
+> **Note:** Configure your API key in the environment (`EXA_API_KEY`) before asking your assistant to use exacli. See [Configuration](#configuration) below.
+
 ## Configuration
 
 ### API Key
@@ -96,10 +110,6 @@ exacli search "AI startups" --api-key "your-api-key-here"
 Get your API key at [https://dashboard.exa.ai/api-keys](https://dashboard.exa.ai/api-keys)
 
 **Resolution order:** `--api-key` flag → `EXA_API_KEY` env var → OS keychain
-
-## Usage with Claude Code
-
-When installed on your system, Claude Code can use `exacli` to search the web, extract content, and conduct research. The included skill (`.claude/skills/exacli/`) provides Claude Code with command reference and usage patterns.
 
 ## Commands
 
