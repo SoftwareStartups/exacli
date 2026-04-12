@@ -32,3 +32,6 @@ docs/TODO.md
 docs/plans/
 prd/
 worktrees/
+AGENTS.md
+CLAUDE.md
+.direnv

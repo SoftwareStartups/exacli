@@ -32,7 +32,36 @@ nix profile install github:wesbragagt/exacli
 
 ### From Source
 
-Prerequisites: [Go 1.21+](https://go.dev/dl/) and [Task](https://taskfile.dev)
+The recommended way to set up the development environment is with [Nix](https://nixos.org), which provides Go, Task, and all other dependencies automatically. If you don't have Nix, install it with the [Determinate Nix Installer](https://github.com/DeterminateSystems/nix-installer):
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+```
+
+Then clone the repo and let Nix set up the environment:
+
+```bash
+git clone https://github.com/wesbragagt/exacli.git
+cd exacli
+nix develop        # drops you into a shell with Go 1.25, Task, and all tools ready
+go mod download
+task build
+sudo cp build/exacli /usr/local/bin/
+```
+
+If you use [direnv](https://direnv.net), the included `.envrc` activates the Nix environment automatically when you `cd` into the repo:
+
+```bash
+direnv allow
+```
+
+**Without Nix:** Install the following tools manually, then follow the steps below.
+
+| Tool | Version | Install |
+|------|---------|---------|
+| [Go](https://go.dev/dl/) | 1.25+ | `brew install go` (macOS) or download from go.dev |
+| [Task](https://taskfile.dev/installation/) | any | `brew install go-task` (macOS) or `sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d` |
+| [Git](https://git-scm.com) | any | pre-installed on most systems |
 
 ```bash
 git clone https://github.com/wesbragagt/exacli.git
