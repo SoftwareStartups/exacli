@@ -1,56 +1,67 @@
 # Exacli
 
-Bun-native TypeScript CLI for Exa AI search API. Semantic search, content extraction, AI answers, and automated research.
+Go CLI for the Exa AI search API. Semantic search, content extraction, AI answers, and automated research. Statically linked, zero runtime dependencies.
 
 ## Environment Variables
 
 | Variable | Purpose |
 |----------|---------|
-| `EXA_API_KEY` | Exa API key (or use --api-key flag) |
+| `EXA_API_KEY` | Exa API key (or use --api-key flag or `exacli login`) |
 
 ## Commands
 
 ```bash
 # Setup
-bun install                          # Install dependencies
-task build                           # Compile TypeScript to build/
+go mod download                      # Download dependencies
+
+# Development
+task build                           # Build binary to build/exacli
 task clean                           # Remove build/ and dist/
 
 # Quality
-task lint                            # Lint with Biome
-task format                          # Format with Biome (write)
-task test                            # Run tests (bun test)
-task check                           # Lint + typecheck + tests
+task lint                            # go vet ./...
+task test                            # go test ./...
+task check                           # Lint + tests
 
 # Pipelines
-task ci                              # Full CI locally: clean -> install -> format:check -> check -> build
+task ci                              # Full CI: clean -> check -> build
 
 # Release
-task compile                         # Build standalone binary for current platform
-task compile:all                     # Build binaries for all 6 platforms
+task compile                         # CGO_ENABLED=0 binary for current platform -> dist/exacli
+task compile:all                     # Binaries for all 8 platforms -> dist/
+task compile:native                  # Platform-suffixed binary -> dist/exacli-<os>-<arch>
 ```
 
 ## Architecture
 
 ```text
-src/
-├── index.ts              # CLI entry point (arg parsing, help, command dispatch)
-├── client.ts             # Exa SDK wrapper
+cmd/exacli/
+└── main.go               # Entry point — calls commands.Execute()
+internal/
+├── client/
+│   └── client.go         # Exa HTTP client (all endpoints, SSE streaming, polling)
 ├── commands/
-│   ├── types.ts          # Command arg interfaces and shared types
-│   ├── search.ts         # Web search
-│   ├── contents.ts       # URL content extraction
-│   ├── similar.ts        # Similar page discovery
-│   ├── answer.ts         # AI-powered answers
-│   └── research.ts       # Research tasks (create, status, list)
+│   ├── root.go           # Cobra root command, global flags, ResolveAPIKey()
+│   ├── search.go         # search <query>
+│   ├── contents.go       # contents <url...>
+│   ├── similar.go        # similar <url>
+│   ├── answer.go         # answer <query> (+ --stream SSE)
+│   ├── research.go       # research / research-status / research-list
+│   └── auth.go           # login / logout (OS keychain via go-keyring)
 ├── formatters/
-│   └── markdown.ts       # Markdown + JSON output formatting
+│   └── formatters.go     # Markdown, JSON, TOON output formatting
 └── utils/
-    ├── commands.ts       # Shared command helpers (error handling, content options, citations)
-    └── validation.ts     # Input validation (numbers, URLs, string lists)
-tests/
-├── validation.test.ts
-├── formatters.test.ts
-├── commands.test.ts
-└── e2e.test.ts
+    └── validation.go     # Input validation (URLs, search types, models)
+archive/                  # TypeScript source (archived)
 ```
+
+## API Key Resolution
+
+1. `--api-key` flag
+2. `EXA_API_KEY` environment variable
+3. OS keychain (`exacli login` stores it via go-keyring)
+
+## Cross-compile Targets
+
+8 platforms: linux-x64, linux-arm64, linux-x64-musl, linux-arm64-musl, darwin-x64, darwin-arm64, windows-x64, windows-arm64
+All built with `CGO_ENABLED=0`.
