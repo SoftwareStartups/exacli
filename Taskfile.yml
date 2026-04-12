@@ -49,7 +49,7 @@ tasks:
     desc: Compile to standalone binary
     cmds:
       - mkdir -p dist
-      - bun build src/index.ts --compile --outfile dist/exacli
+      - BUN_CONFIG_FILE=/dev/null bun build src/index.ts --compile --outfile dist/exacli
 
   compile:native:
     desc: Compile for the current platform with platform-suffixed output (e.g. dist/exacli-darwin-arm64)
@@ -62,21 +62,21 @@ tasks:
           x86_64) ARCH="x64" ;;
           aarch64|arm64) ARCH="arm64" ;;
         esac
-        bun build src/index.ts --compile --outfile "dist/exacli-${OS}-${ARCH}"
+        BUN_CONFIG_FILE=/dev/null bun build src/index.ts --compile --outfile "dist/exacli-${OS}-${ARCH}"
         echo "Built: dist/exacli-${OS}-${ARCH}"
 
   compile:all:
     desc: Compile for all platforms (see PLATFORMS.md)
     cmds:
       - mkdir -p dist
-      - bun build src/index.ts --compile --target=bun-linux-x64 --outfile dist/exacli-linux-x64
-      - bun build src/index.ts --compile --target=bun-linux-arm64 --outfile dist/exacli-linux-arm64
-      - bun build src/index.ts --compile --target=bun-linux-x64-musl --outfile dist/exacli-linux-x64-musl
-      - bun build src/index.ts --compile --target=bun-linux-arm64-musl --outfile dist/exacli-linux-arm64-musl
-      - bun build src/index.ts --compile --target=bun-darwin-x64 --outfile dist/exacli-darwin-x64
-      - bun build src/index.ts --compile --target=bun-darwin-arm64 --outfile dist/exacli-darwin-arm64
-      - bun build src/index.ts --compile --target=bun-windows-x64 --outfile dist/exacli-windows-x64.exe
-      - bun build src/index.ts --compile --target=bun-windows-arm64 --outfile dist/exacli-windows-arm64.exe
+      - BUN_CONFIG_FILE=/dev/null bun build src/index.ts --compile --target=bun-linux-x64 --outfile dist/exacli-linux-x64
+      - BUN_CONFIG_FILE=/dev/null bun build src/index.ts --compile --target=bun-linux-arm64 --outfile dist/exacli-linux-arm64
+      - BUN_CONFIG_FILE=/dev/null bun build src/index.ts --compile --target=bun-linux-x64-musl --outfile dist/exacli-linux-x64-musl
+      - BUN_CONFIG_FILE=/dev/null bun build src/index.ts --compile --target=bun-linux-arm64-musl --outfile dist/exacli-linux-arm64-musl
+      - BUN_CONFIG_FILE=/dev/null bun build src/index.ts --compile --target=bun-darwin-x64 --outfile dist/exacli-darwin-x64
+      - BUN_CONFIG_FILE=/dev/null bun build src/index.ts --compile --target=bun-darwin-arm64 --outfile dist/exacli-darwin-arm64
+      - BUN_CONFIG_FILE=/dev/null bun build src/index.ts --compile --target=bun-windows-x64 --outfile dist/exacli-windows-x64.exe
+      - BUN_CONFIG_FILE=/dev/null bun build src/index.ts --compile --target=bun-windows-arm64 --outfile dist/exacli-windows-arm64.exe
 
   ci:
     desc: Run full CI pipeline locally
