@@ -29,6 +29,7 @@ const helpText = `exacli — Exa AI search CLI
 
 Commands:
   search     Search the web using Exa
+  code       Search code using the Exa Code API
   contents   Get content from URLs
   similar    Find similar pages to a URL
   answer     Get an AI-powered answer to a query

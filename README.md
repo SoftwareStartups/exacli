@@ -13,6 +13,7 @@ The original required Bun and kept segfaulting inside a sandboxed harness — th
 `exacli` is a command-line tool that communicates with the Exa AI search API. It can be used standalone or through Claude Code to:
 
 - Search the web using semantic understanding
+- Search code — get merged snippets from GitHub, Stack Overflow, and official docs in one shot
 - Extract full text, highlights, and summaries from URLs
 - Get AI-generated answers with source citations
 - Find pages similar to any URL
@@ -119,6 +120,27 @@ Get your API key at [https://dashboard.exa.ai/api-keys](https://dashboard.exa.ai
 **Resolution order:** `--api-key` flag → `EXA_API_KEY` env var → OS keychain
 
 ## Commands
+
+### `code <query>`
+
+Search code using the Exa Code API. Returns a single merged block of code snippets, documentation, and explanations sourced from GitHub, Stack Overflow, and official docs — optimised for stuffing directly into an LLM context window.
+
+```bash
+exacli code "how to use cobra CLI in Go"
+exacli code "React useEffect cleanup pattern" --tokens-num 5000
+exacli code "postgres connection pooling in Go" --json
+```
+
+**Options:** `--tokens-num <dynamic|1000|5000|50000>` (default: `dynamic`)
+
+**vs `search`:**
+
+| | `code` | `search` |
+|---|---|---|
+| Returns | One merged context block | Separate result objects |
+| Content | Full code + explanations | URLs only (unless `--text`) |
+| Token control | `--tokens-num` budget | — |
+| Agent-ready | Drop straight into context | Need to fetch each URL |
 
 ### `search <query>`
 

@@ -265,3 +265,55 @@ func TestFormatSuccess(t *testing.T) {
 		})
 	}
 }
+
+// ---------------------------------------------------------------------------
+// FormatCodeContextResult
+// ---------------------------------------------------------------------------
+
+func TestFormatCodeContextResult(t *testing.T) {
+	resp := &client.CodeContextResponse{
+		RequestID: "ctx-001",
+		Query:     "how to use cobra",
+		Response:  "func main() { fmt.Println(\"hello\") }",
+	}
+
+	t.Run("markdown mode", func(t *testing.T) {
+		out := FormatCodeContextResult(resp, false, false)
+		for _, want := range []string{
+			"# Code Context",
+			"Request ID: ctx-001",
+			"Query: how to use cobra",
+			"func main()",
+		} {
+			if !strings.Contains(out, want) {
+				t.Errorf("markdown output missing %q, got:\n%s", want, out)
+			}
+		}
+	})
+
+	t.Run("json mode", func(t *testing.T) {
+		out := FormatCodeContextResult(resp, true, false)
+		var parsed map[string]any
+		if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+			t.Fatalf("JSON output is not valid JSON: %v", err)
+		}
+		if !strings.Contains(out, "ctx-001") {
+			t.Error("JSON output missing requestId")
+		}
+	})
+
+	t.Run("toon mode", func(t *testing.T) {
+		out := FormatCodeContextResult(resp, false, true)
+		if !strings.Contains(out, "requestId: ctx-001") {
+			t.Errorf("TOON output missing requestId line, got:\n%s", out)
+		}
+	})
+
+	t.Run("empty response does not panic", func(t *testing.T) {
+		empty := &client.CodeContextResponse{}
+		out := FormatCodeContextResult(empty, false, false)
+		if !strings.Contains(out, "# Code Context") {
+			t.Error("empty response missing header")
+		}
+	})
+}

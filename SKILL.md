@@ -1,6 +1,6 @@
 ---
 name: exacli
-description: Exa AI search API via CLI. Activate when user wants to search the web, find information, extract content from websites, get AI answers with sources, or perform automated research. Examples: "search for AI startups", "extract content from this URL", "research this topic", "find similar pages".
+description: Exa AI search API via CLI. Activate when user wants to search the web, find information, search code examples, extract content from websites, get AI answers with sources, or perform automated research. Examples: "search for AI startups", "extract content from this URL", "research this topic", "find similar pages", "search for code examples", "how do I use X library".
 ---
 
 # Exacli
@@ -52,6 +52,22 @@ exacli research-status "task-id" --json | jq '{status, output}'
 ```
 
 ## Commands
+
+### code
+
+Search code using the Exa Code API. Returns one merged block of code snippets, docs, and explanations from GitHub, Stack Overflow, and official documentation — ready to drop directly into an LLM context window.
+
+**Use this instead of `search` when you need actual code examples.** `search` returns URLs and metadata; `code` returns the content itself.
+
+```bash
+exacli code "how to use cobra CLI in Go"
+exacli code "React useEffect cleanup pattern" --tokens-num 5000
+exacli code "postgres connection pooling in Go" --toon
+```
+
+| Option | Values | Default | Description |
+|--------|--------|---------|-------------|
+| `--tokens-num` | `dynamic`, `1000`, `5000`, `50000` | `dynamic` | Token budget for response |
 
 ### search
 
@@ -160,6 +176,11 @@ exacli logout   # remove API key from OS keychain
 ## Common Patterns
 
 ```bash
+# Code search — get merged snippets agent-ready
+exacli code "how to implement JWT auth in Go"
+exacli code "React query v5 migration guide" --tokens-num 5000
+exacli code "Express.js middleware pattern" --json | jq '.response'
+
 # Semantic search with content
 exacli search "AI startups" --num-results 5 --text --json | jq '.results[] | {title, url}'
 

@@ -223,6 +223,35 @@ func FormatResearchList(resp *client.ResearchListResponse, asJSON, asToon bool) 
 }
 
 // ---------------------------------------------------------------------------
+// FormatCodeContextResult formats a CodeContextResponse as markdown, JSON, or TOON.
+// ---------------------------------------------------------------------------
+
+func FormatCodeContextResult(resp *client.CodeContextResponse, asJSON, asToon bool) string {
+	if asJSON {
+		return toJSON(resp)
+	}
+	if asToon {
+		return toToon(resp)
+	}
+
+	var b strings.Builder
+	b.WriteString("# Code Context\n\n")
+
+	if resp.RequestID != "" {
+		fmt.Fprintf(&b, "Request ID: %s\n", resp.RequestID)
+	}
+	if resp.Query != "" {
+		fmt.Fprintf(&b, "Query: %s\n", resp.Query)
+	}
+	b.WriteString("\n")
+
+	b.WriteString(resp.Response)
+	b.WriteString("\n")
+
+	return b.String()
+}
+
+// ---------------------------------------------------------------------------
 // FormatError formats an error message.
 // ---------------------------------------------------------------------------
 

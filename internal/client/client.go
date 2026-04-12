@@ -79,6 +79,11 @@ type researchCreateRequest struct {
 	Model        string `json:"model,omitempty"`
 }
 
+type codeContextRequest struct {
+	Query     string `json:"query"`
+	TokensNum any    `json:"tokensNum,omitempty"`
+}
+
 // ---------------------------------------------------------------------------
 // Option types (exported)
 // ---------------------------------------------------------------------------
@@ -121,6 +126,11 @@ type AnswerOptions struct {
 	Text         bool
 	Model        string
 	SystemPrompt string
+}
+
+// CodeContextOptions configures a CodeContext request.
+type CodeContextOptions struct {
+	TokensNum any // "dynamic" | 1000 | 5000 | 50000
 }
 
 // ResearchCreateOptions configures a ResearchCreate request.
@@ -214,6 +224,13 @@ type ResearchEvent struct {
 	CreatedAt int64  `json:"createdAt"`
 	EventType string `json:"eventType"`
 	Message   string `json:"message"`
+}
+
+// CodeContextResponse is returned by CodeContext.
+type CodeContextResponse struct {
+	RequestID string `json:"requestId"`
+	Query     string `json:"query"`
+	Response  string `json:"response"`
 }
 
 // ResearchListResponse is returned by ResearchList.
@@ -477,6 +494,20 @@ func (c *Client) ResearchList(opts ResearchListOptions) (*ResearchListResponse, 
 
 	var resp ResearchListResponse
 	if err := c.get("/research", params, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// CodeContext retrieves code context for the given query using the Exa Code API.
+func (c *Client) CodeContext(query string, opts CodeContextOptions) (*CodeContextResponse, error) {
+	body := codeContextRequest{
+		Query:     query,
+		TokensNum: opts.TokensNum,
+	}
+
+	var resp CodeContextResponse
+	if err := c.post("/context", body, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
