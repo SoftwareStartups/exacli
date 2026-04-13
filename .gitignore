@@ -35,3 +35,6 @@ worktrees/
 AGENTS.md
 CLAUDE.md
 .direnv
+
+# Skill eval workspace (benchmark outputs, not source)
+guides/.claude/skills/exacli-workspace/
