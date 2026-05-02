@@ -1,5 +1,4 @@
 import { describe, test, expect, mock } from 'bun:test';
-import type { ExaClient } from '../src/client.js';
 import * as search from '../src/commands/search.js';
 import * as contents from '../src/commands/contents.js';
 import * as similar from '../src/commands/similar.js';
@@ -11,305 +10,199 @@ import {
   dedupCitations,
   runCommand,
 } from '../src/utils/commands.js';
-
-function stubProcessExit() {
-  const originalExit = process.exit;
-  process.exit = mock(() => {}) as unknown as (code?: number) => never;
-  return () => {
-    process.exit = originalExit;
-  };
-}
+import { asExaClient } from './helpers/mock-client.js';
+import { stubProcessExit } from './helpers/process-exit.js';
 
 describe('search command', () => {
-  const mockClient = {
-    search: mock(() => ({ results: [] })),
-    searchAndContents: mock(() => ({ results: [] })),
-  } as unknown as ExaClient;
-
-  test('calls search with numResults option', async () => {
+  test('passes numResults option to search', async () => {
+    const searchMock = mock(() => ({ results: [] }));
+    const client = asExaClient({ search: searchMock });
     const restore = stubProcessExit();
 
-    await search.search(mockClient, 'test query', {
-      'num-results': '10',
-      text: false,
-      highlights: false,
-      summary: false,
-    });
+    await search.search(client, 'test query', { 'num-results': '10' });
 
     restore();
-    expect(
-      (mockClient as unknown as { search: { mock: unknown } }).search
-    ).toHaveBeenCalled();
+    expect(searchMock).toHaveBeenCalledWith(
+      'test query',
+      expect.objectContaining({ numResults: 10 })
+    );
   });
 
-  test('calls searchAndContents when content options are present', async () => {
+  test('routes to searchAndContents when text option is set', async () => {
+    const searchAndContentsMock = mock(() => ({ results: [] }));
+    const client = asExaClient({ searchAndContents: searchAndContentsMock });
     const restore = stubProcessExit();
 
-    await search.search(mockClient, 'test query', {
-      text: true,
-      highlights: false,
-      summary: false,
-    });
+    await search.search(client, 'test query', { text: true });
 
     restore();
-    expect(
-      (
-        mockClient as unknown as {
-          searchAndContents: { mock: unknown };
-        }
-      ).searchAndContents
-    ).toHaveBeenCalled();
+    expect(searchAndContentsMock).toHaveBeenCalledWith(
+      'test query',
+      expect.objectContaining({ text: true })
+    );
   });
 
-  test('handles include-domains and exclude-domains', async () => {
+  test('passes include-domains and exclude-domains as parsed lists', async () => {
+    const searchMock = mock(() => ({ results: [] }));
+    const client = asExaClient({ search: searchMock });
     const restore = stubProcessExit();
 
-    await search.search(mockClient, 'test query', {
+    await search.search(client, 'test query', {
       'include-domains': 'example.com,test.com',
       'exclude-domains': 'spam.com',
-      text: false,
-      highlights: false,
-      summary: false,
     });
 
     restore();
-    expect(
-      (mockClient as unknown as { search: { mock: unknown } }).search
-    ).toHaveBeenCalled();
+    expect(searchMock).toHaveBeenCalledWith(
+      'test query',
+      expect.objectContaining({
+        includeDomains: ['example.com', 'test.com'],
+        excludeDomains: ['spam.com'],
+      })
+    );
   });
 });
 
 describe('contents command', () => {
-  test('validates URLs before processing', async () => {
-    const mockClient = {
-      getContents: mock(() => ({ results: [] })),
-    } as unknown as ExaClient;
-
-    const restore = stubProcessExit();
-
-    await contents.contents(mockClient, ['https://example.com'], {});
-
-    restore();
-    expect(
-      (mockClient as unknown as { getContents: { mock: unknown } }).getContents
-    ).toHaveBeenCalled();
-  });
-
-  test('rejects invalid URLs', async () => {
-    const mockClient = {
-      getContents: mock(() => ({ results: [] })),
-    } as unknown as ExaClient;
-
-    const originalExit = process.exit;
-    const exitMock = mock(() => {
-      throw new Error('process.exit called');
-    }) as unknown as (code?: number) => never;
-    process.exit = exitMock;
-
-    await expect(
-      contents.contents(mockClient, ['not-a-url'], {})
-    ).rejects.toThrow('process.exit called');
-
-    process.exit = originalExit;
-    expect(
-      (mockClient as unknown as { getContents: { mock: unknown } }).getContents
-    ).not.toHaveBeenCalled();
-  });
-
-  test('handles multiple URLs', async () => {
-    const mockClient = {
-      getContents: mock(() => ({ results: [] })),
-    } as unknown as ExaClient;
-
+  test('passes URL list to getContents for valid URLs', async () => {
+    const getContentsMock = mock(() => ({ results: [] }));
+    const client = asExaClient({ getContents: getContentsMock });
     const restore = stubProcessExit();
 
     await contents.contents(
-      mockClient,
+      client,
       ['https://example.com', 'https://test.com'],
       {}
     );
 
     restore();
-    expect(
-      (mockClient as unknown as { getContents: { mock: unknown } }).getContents
-    ).toHaveBeenCalled();
+    expect(getContentsMock).toHaveBeenCalledWith(
+      ['https://example.com', 'https://test.com'],
+      expect.any(Object)
+    );
+  });
+
+  test('exits without calling getContents when a URL is invalid', async () => {
+    const getContentsMock = mock(() => ({ results: [] }));
+    const client = asExaClient({ getContents: getContentsMock });
+    const restore = stubProcessExit();
+
+    await expect(contents.contents(client, ['not-a-url'], {})).rejects.toThrow(
+      'process.exit called'
+    );
+
+    restore();
+    expect(getContentsMock).not.toHaveBeenCalled();
   });
 });
 
 describe('similar command', () => {
-  test('calls similar with URL', async () => {
-    const mockClient = {
-      findSimilar: mock(() => ({ results: [] })),
-    } as unknown as ExaClient;
-
+  test('passes URL to findSimilar', async () => {
+    const findSimilarMock = mock(() => ({ results: [] }));
+    const client = asExaClient({ findSimilar: findSimilarMock });
     const restore = stubProcessExit();
 
-    await similar.similar(mockClient, 'https://example.com', {});
+    await similar.similar(client, 'https://example.com', {});
 
     restore();
-    expect(
-      (mockClient as unknown as { findSimilar: { mock: unknown } }).findSimilar
-    ).toHaveBeenCalled();
+    expect(findSimilarMock).toHaveBeenCalledWith(
+      'https://example.com',
+      expect.any(Object)
+    );
+  });
+
+  test('routes to findSimilarAndContents when content options are set', async () => {
+    const findSimilarAndContentsMock = mock(() => ({ results: [] }));
+    const client = asExaClient({
+      findSimilarAndContents: findSimilarAndContentsMock,
+    });
+    const restore = stubProcessExit();
+
+    await similar.similar(client, 'https://example.com', { text: true });
+
+    restore();
+    expect(findSimilarAndContentsMock).toHaveBeenCalledWith(
+      'https://example.com',
+      expect.objectContaining({ text: true })
+    );
   });
 });
 
 describe('answer command', () => {
-  test('calls answer without streaming', async () => {
-    const mockClient = {
-      answer: mock(() => ({ answer: 'test answer' })),
-    } as unknown as ExaClient;
-
+  test('passes query to answer when not streaming', async () => {
+    const answerMock = mock(() => ({ answer: 'test answer' }));
+    const client = asExaClient({ answer: answerMock });
     const restore = stubProcessExit();
 
-    await answer.answer(mockClient, 'test query', { stream: false });
+    await answer.answer(client, 'test query', { stream: false });
 
     restore();
-    expect(
-      (mockClient as unknown as { answer: { mock: unknown } }).answer
-    ).toHaveBeenCalled();
+    expect(answerMock).toHaveBeenCalledWith('test query', expect.any(Object));
   });
 
-  test('calls streamAnswer when stream is true', async () => {
-    const mockClient = {
-      streamAnswer: mock(async function* () {
-        yield { content: 'test', citations: [] };
-      }),
-    } as unknown as ExaClient;
-
+  test('routes to streamAnswer when stream flag is true', async () => {
+    const streamAnswerMock = mock(async function* () {
+      yield { content: 'test', citations: [] };
+    });
+    const client = asExaClient({ streamAnswer: streamAnswerMock });
     const restore = stubProcessExit();
 
-    await answer.answer(mockClient, 'test query', { stream: true });
+    await answer.answer(client, 'test query', { stream: true });
 
     restore();
-    expect(
-      (mockClient as unknown as { streamAnswer: { mock: unknown } })
-        .streamAnswer
-    ).toHaveBeenCalled();
+    expect(streamAnswerMock).toHaveBeenCalledWith(
+      'test query',
+      expect.any(Object)
+    );
   });
 });
 
 describe('research commands', () => {
-  test('researchCreate creates task with instructions', async () => {
-    const mockClient = {
-      research: {
-        create: mock(() => ({
-          researchId: 'test-id',
-          status: 'in_progress',
-        })),
-        pollUntilFinished: mock(() => ({
-          researchId: 'test-id',
-          status: 'completed',
-        })),
-      },
-    } as unknown as ExaClient;
-
+  test('researchCreate maps model alias to API model name', async () => {
+    const createMock = mock(() => ({
+      researchId: 'test-id',
+      status: 'in_progress',
+    }));
+    const client = asExaClient({ research: { create: createMock } });
     const restore = stubProcessExit();
 
-    await research.researchCreate(mockClient, 'test instructions', {});
-
-    restore();
-    expect(
-      (
-        mockClient as unknown as {
-          research: { create: { mock: unknown } };
-        }
-      ).research.create
-    ).toHaveBeenCalled();
-  });
-
-  test('researchCreate maps model correctly', async () => {
-    const mockClient = {
-      research: {
-        create: mock(() => ({
-          researchId: 'test-id',
-          status: 'in_progress',
-        })),
-      },
-    } as unknown as ExaClient;
-
-    const restore = stubProcessExit();
-
-    await research.researchCreate(mockClient, 'test instructions', {
+    await research.researchCreate(client, 'test instructions', {
       model: 'fast',
     });
 
     restore();
-    expect(
-      (
-        mockClient as unknown as {
-          research: { create: { mock: unknown } };
-        }
-      ).research.create
-    ).toHaveBeenCalledWith({
+    expect(createMock).toHaveBeenCalledWith({
       instructions: 'test instructions',
       model: 'exa-research-fast',
     });
   });
 
-  test('researchStatus fetches task by ID', async () => {
-    const mockClient = {
-      research: {
-        get: mock(() => ({ researchId: 'test-id', status: 'completed' })),
-      },
-    } as unknown as ExaClient;
-
+  test('researchStatus requests events for the given ID', async () => {
+    const getMock = mock(() => ({
+      researchId: 'test-id',
+      status: 'completed',
+    }));
+    const client = asExaClient({ research: { get: getMock } });
     const restore = stubProcessExit();
 
-    await research.researchStatus(mockClient, 'test-id', {});
+    await research.researchStatus(client, 'test-id', {});
 
     restore();
-    expect(
-      (
-        mockClient as unknown as {
-          research: { get: { mock: unknown } };
-        }
-      ).research.get
-    ).toHaveBeenCalledWith('test-id', { events: true });
+    expect(getMock).toHaveBeenCalledWith('test-id', { events: true });
   });
 
-  test('researchList fetches all tasks', async () => {
-    const mockClient = {
-      research: {
-        list: mock(() => ({ data: [], hasMore: false })),
-      },
-    } as unknown as ExaClient;
-
+  test('researchList forwards limit and cursor as parsed values', async () => {
+    const listMock = mock(() => ({ data: [], hasMore: false }));
+    const client = asExaClient({ research: { list: listMock } });
     const restore = stubProcessExit();
 
-    await research.researchList(mockClient, {});
-
-    restore();
-    expect(
-      (
-        mockClient as unknown as {
-          research: { list: { mock: unknown } };
-        }
-      ).research.list
-    ).toHaveBeenCalled();
-  });
-
-  test('researchList respects limit and cursor', async () => {
-    const mockClient = {
-      research: {
-        list: mock(() => ({ data: [], hasMore: false })),
-      },
-    } as unknown as ExaClient;
-
-    const restore = stubProcessExit();
-
-    await research.researchList(mockClient, {
+    await research.researchList(client, {
       limit: '10',
       cursor: 'test-cursor',
     });
 
     restore();
-    expect(
-      (
-        mockClient as unknown as {
-          research: { list: { mock: unknown } };
-        }
-      ).research.list
-    ).toHaveBeenCalledWith({
+    expect(listMock).toHaveBeenCalledWith({
       limit: 10,
       cursor: 'test-cursor',
     });
@@ -395,11 +288,7 @@ describe('runCommand', () => {
   });
 
   test('calls process.exit(1) on error', async () => {
-    const originalExit = process.exit;
-    const exitMock = mock(() => {
-      throw new Error('process.exit called');
-    }) as unknown as (code?: number) => never;
-    process.exit = exitMock;
+    const restore = stubProcessExit();
 
     await expect(
       runCommand(async () => {
@@ -407,6 +296,6 @@ describe('runCommand', () => {
       })
     ).rejects.toThrow('process.exit called');
 
-    process.exit = originalExit;
+    restore();
   });
 });

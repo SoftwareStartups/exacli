@@ -4,6 +4,9 @@
 
 ```text
 tests/
+├── helpers/
+│   ├── mock-client.ts        # asExaClient() — typed cast for partial ExaClient mocks
+│   └── process-exit.ts       # stubProcessExit() — throwing process.exit stub
 ├── unit/
 │   └── auth/
 │       └── keychain.test.ts  # Credential storage
@@ -21,7 +24,8 @@ task test              # All tests (e2e skipped without EXA_API_KEY)
 
 ## Helpers
 
-No shared test helpers — utilities are inline. This is the simplest tool with the simplest test structure.
+- `helpers/process-exit.ts` — `stubProcessExit()` replaces `process.exit` with a throwing stub and returns a `restore()` callback. Use this in any test that exercises code calling `process.exit` so a stray call surfaces as a test failure rather than a silent pass.
+- `helpers/mock-client.ts` — `asExaClient(partial)` casts a partial mock object to `ExaClient` for tests, replacing the `as unknown as ExaClient` boilerplate.
 
 ## Conventions
 
