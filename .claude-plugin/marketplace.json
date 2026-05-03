@@ -1,0 +1,14 @@
+{
+  "name": "softwarestartups-exacli",
+  "owner": {
+    "name": "SoftwareStartups",
+    "url": "https://github.com/SoftwareStartups"
+  },
+  "plugins": [
+    {
+      "name": "exacli",
+      "source": ".",
+      "description": "Exa AI search API via CLI. Activate when user wants to search the web, find information, extract content from websites, get AI answers with sources, or perform automated research."
+    }
+  ]
+}

@@ -70,9 +70,16 @@ exacli search "AI startups" --api-key "your-api-key-here"
 
 Get your API key at [https://dashboard.exa.ai/api-keys](https://dashboard.exa.ai/api-keys)
 
-## Usage with Claude Code
+## Use with Claude Code
 
-When installed on your system, Claude Code can use `exacli` to search the web, extract content, and conduct research. The included skill (`.claude/skills/exacli/`) provides Claude Code with command reference and usage patterns.
+This repo is a Claude Code plugin marketplace. Install the companion skill so Claude Code can drive `exacli` for you:
+
+```bash
+/plugin marketplace add SoftwareStartups/exacli
+/plugin install exacli@softwarestartups-exacli
+```
+
+Once installed, just ask Claude in plain language (e.g., "Find recent articles about post-quantum cryptography") and the skill will activate automatically. The plugin tracks this repo's releases — run `/plugin marketplace update softwarestartups-exacli` to get the latest skill revisions.
 
 ## Commands
 

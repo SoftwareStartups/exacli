@@ -1,0 +1,10 @@
+{
+  "name": "exacli",
+  "description": "Exa AI search API via CLI. Activate when user wants to search the web, find information, extract content from websites, get AI answers with sources, or perform automated research.",
+  "version": "1.2.1",
+  "author": {
+    "name": "SoftwareStartups"
+  },
+  "homepage": "https://github.com/SoftwareStartups/exacli",
+  "license": "Proprietary"
+}
