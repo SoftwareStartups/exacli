@@ -10,10 +10,9 @@ AI-powered web research with semantic search, category filters, content extracti
 ## Rules
 
 1. Always use `--json` and pipe through `jq` to keep context small
-2. Set `EXA_API_KEY` env var (or pass `--api-key`) before use
-3. Use `--highlights` for snippets, `--text` for full content, `--summary` for AI-generated overview
-4. **NEVER use `--poll`** — it blocks 3–5 minutes and gets killed by the Bash tool timeout. Use the non-blocking start-then-check pattern (see Deep Research below)
-5. Deep research is a two-step process: start with `exacli research`, then poll with `exacli research-status` in separate Bash calls
+2. Use `--highlights` for snippets, `--text` for full content, `--summary` for AI-generated overview
+3. **NEVER use `--poll`** — it blocks 3–5 minutes and gets killed by the Bash tool timeout. Use the non-blocking start-then-check pattern (see Deep Research below)
+4. Deep research is a two-step process: start with `exacli research`, then poll with `exacli research-status` in separate Bash calls
 
 ## Workflow
 
