@@ -93,5 +93,9 @@ function buildAnswerOptions(args: AnswerCommandArgs) {
     options.systemPrompt = args['system-prompt'];
   }
 
+  if (args['user-location']) {
+    options.userLocation = args['user-location'];
+  }
+
   return options;
 }

@@ -2,7 +2,7 @@ import type { ExaClient } from '../client.js';
 import * as format from '../formatters/markdown.js';
 import type { ContentsCommandArgs } from './types.js';
 import { applyContentOptions, runCommand } from '../utils/commands.js';
-import { isValidUrl, parseNumber } from '../utils/validation.js';
+import { isValidUrl } from '../utils/validation.js';
 
 export async function contents(
   client: ExaClient,
@@ -31,11 +31,6 @@ function buildContentsOptions(args: ContentsCommandArgs) {
   const options: Record<string, unknown> = {};
 
   applyContentOptions(options, args);
-
-  const maxAgeHours = parseNumber(args['max-age-hours']);
-  if (maxAgeHours !== undefined) {
-    options.maxAgeHours = maxAgeHours;
-  }
 
   return options;
 }

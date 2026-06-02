@@ -34,13 +34,28 @@ export function parseStringList(value: unknown): string[] | undefined {
 }
 
 export function isValidSearchType(value: unknown): value is string {
-  const validTypes = ['auto', 'fast', 'deep', 'instant'];
+  const validTypes = [
+    'auto',
+    'fast',
+    'instant',
+    'keyword',
+    'neural',
+    'hybrid',
+    'deep-lite',
+    'deep',
+    'deep-reasoning',
+  ];
   return typeof value === 'string' && validTypes.includes(value);
 }
 
 export function isValidAnswerModel(value: unknown): value is string {
-  const validModels = ['exa', 'exa-pro'];
+  const validModels = ['exa'];
   return typeof value === 'string' && validModels.includes(value);
+}
+
+export function isValidLivecrawl(value: unknown): value is string {
+  const validOptions = ['never', 'fallback', 'always', 'auto', 'preferred'];
+  return typeof value === 'string' && validOptions.includes(value);
 }
 
 export function isValidResearchModel(value: unknown): value is string {

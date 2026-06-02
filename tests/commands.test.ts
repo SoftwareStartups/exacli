@@ -61,6 +61,68 @@ describe('search command', () => {
       })
     );
   });
+
+  test('maps text/crawl filters, user location, and moderation', async () => {
+    const searchMock = mock(() => ({ results: [] }));
+    const client = asExaClient({ search: searchMock });
+    const restore = stubProcessExit();
+
+    await search.search(client, 'test query', {
+      'include-text': 'GPT',
+      'exclude-text': 'spam',
+      'start-crawl-date': '2024-01-01',
+      'end-crawl-date': '2024-12-31',
+      'user-location': 'US',
+      moderation: true,
+    });
+
+    restore();
+    expect(searchMock).toHaveBeenCalledWith(
+      'test query',
+      expect.objectContaining({
+        includeText: ['GPT'],
+        excludeText: ['spam'],
+        startCrawlDate: '2024-01-01',
+        endCrawlDate: '2024-12-31',
+        userLocation: 'US',
+        moderation: true,
+      })
+    );
+  });
+
+  test('maps additional-queries as a parsed list', async () => {
+    const searchMock = mock(() => ({ results: [] }));
+    const client = asExaClient({ search: searchMock });
+    const restore = stubProcessExit();
+
+    await search.search(client, 'test query', {
+      type: 'deep',
+      'additional-queries': 'ml,neural networks',
+    });
+
+    restore();
+    expect(searchMock).toHaveBeenCalledWith(
+      'test query',
+      expect.objectContaining({
+        type: 'deep',
+        additionalQueries: ['ml', 'neural networks'],
+      })
+    );
+  });
+
+  test('routes to searchAndContents for content-only options like livecrawl', async () => {
+    const searchAndContentsMock = mock(() => ({ results: [] }));
+    const client = asExaClient({ searchAndContents: searchAndContentsMock });
+    const restore = stubProcessExit();
+
+    await search.search(client, 'test query', { livecrawl: 'always' });
+
+    restore();
+    expect(searchAndContentsMock).toHaveBeenCalledWith(
+      'test query',
+      expect.objectContaining({ livecrawl: 'always' })
+    );
+  });
 });
 
 describe('contents command', () => {
@@ -155,6 +217,26 @@ describe('answer command', () => {
       expect.any(Object)
     );
   });
+
+  test('maps system prompt and user location', async () => {
+    const answerMock = mock(() => ({ answer: 'test answer' }));
+    const client = asExaClient({ answer: answerMock });
+    const restore = stubProcessExit();
+
+    await answer.answer(client, 'test query', {
+      'system-prompt': 'Be concise',
+      'user-location': 'US',
+    });
+
+    restore();
+    expect(answerMock).toHaveBeenCalledWith(
+      'test query',
+      expect.objectContaining({
+        systemPrompt: 'Be concise',
+        userLocation: 'US',
+      })
+    );
+  });
 });
 
 describe('research commands', () => {
@@ -222,6 +304,14 @@ describe('hasContentOptions', () => {
     expect(hasContentOptions({ summary: true })).toBe(true);
   });
 
+  test('returns true for content-only options', () => {
+    expect(hasContentOptions({ livecrawl: 'always' })).toBe(true);
+    expect(hasContentOptions({ subpages: '2' })).toBe(true);
+    expect(hasContentOptions({ 'max-characters': '500' })).toBe(true);
+    expect(hasContentOptions({ 'max-age-hours': '24' })).toBe(true);
+    expect(hasContentOptions({ 'extras-links': '5' })).toBe(true);
+  });
+
   test('returns false when no content options set', () => {
     expect(hasContentOptions({})).toBe(false);
   });
@@ -254,6 +344,39 @@ describe('applyContentOptions', () => {
     const options: Record<string, unknown> = { existing: 'value' };
     applyContentOptions(options, {});
     expect(options).toEqual({ existing: 'value' });
+  });
+
+  test('promotes text to an object when max-characters is set', () => {
+    const options: Record<string, unknown> = {};
+    applyContentOptions(options, { text: true, 'max-characters': '500' });
+    expect(options).toEqual({ text: { maxCharacters: 500 } });
+  });
+
+  test('maps livecrawl, subpages, and max-age-hours', () => {
+    const options: Record<string, unknown> = {};
+    applyContentOptions(options, {
+      livecrawl: 'always',
+      'livecrawl-timeout': '5000',
+      'max-age-hours': '24',
+      subpages: '3',
+      'subpage-target': 'about,pricing',
+    });
+    expect(options).toEqual({
+      livecrawl: 'always',
+      livecrawlTimeout: 5000,
+      maxAgeHours: 24,
+      subpages: 3,
+      subpageTarget: ['about', 'pricing'],
+    });
+  });
+
+  test('builds extras from links and image links', () => {
+    const options: Record<string, unknown> = {};
+    applyContentOptions(options, {
+      'extras-links': '5',
+      'extras-image-links': '2',
+    });
+    expect(options).toEqual({ extras: { links: 5, imageLinks: 2 } });
   });
 });
 

@@ -25,6 +25,7 @@ import {
   isValidSearchType,
   isValidAnswerModel,
   isValidResearchModel,
+  isValidLivecrawl,
 } from './utils/validation.js';
 
 const VERSION = pkg.version;
@@ -56,21 +57,40 @@ Authentication Options:
 
 Search Options:
   --num-results <n>        Number of results (default: 10)
-  --type <auto|fast|deep|instant>  Search type
-  --text                   Include text content
-  --highlights             Include highlights
-  --summary                Include summary
+  --type <type>            Search type: auto, fast, instant, keyword, neural,
+                           hybrid, deep-lite, deep, deep-reasoning
   --category <category>    Filter by category
   --include-domains <list> Comma-separated domain list
   --exclude-domains <list> Comma-separated domain list
-  --start-date <date>     Start date (ISO format)
-  --end-date <date>       End date (ISO format)
+  --include-text <list>    Required text (max 1 string, 5 words)
+  --exclude-text <list>    Forbidden text (max 1 string, 5 words)
+  --start-date <date>     Start published date (ISO format)
+  --end-date <date>       End published date (ISO format)
+  --start-crawl-date <date>  Start crawl date (ISO format)
+  --end-crawl-date <date>    End crawl date (ISO format)
+  --user-location <cc>     Two-letter ISO country code (e.g. US)
+  --moderation             Enable safety filtering
   --autoprompt             Use autoprompt
+  --additional-queries <list>  Alternative queries (deep search types only)
+
+Content Options (search, contents, similar):
+  --text                   Include text content
+  --max-characters <n>     Limit text to n characters
+  --highlights             Include highlights
+  --summary                Include summary
+  --livecrawl <mode>       Livecrawl: never, fallback, always, auto, preferred
+  --livecrawl-timeout <ms> Livecrawl timeout in ms
+  --max-age-hours <n>      Max cache age (0 = always fresh, -1 = cache only)
+  --subpages <n>           Number of subpages per result
+  --subpage-target <list>  Text to match/rank subpages
+  --extras-links <n>       Include n links per result
+  --extras-image-links <n> Include n image links per result
 
 Answer Options:
-  --model <exa|exa-pro>      Model to use
+  --model <exa>            Model to use
   --stream                 Stream the response
   --system-prompt <text>   System prompt
+  --user-location <cc>     Two-letter ISO country code (e.g. US)
 
 Research Options:
   --model <fast|regular|pro>  Research model
@@ -105,9 +125,23 @@ async function main() {
       category: { type: 'string' },
       'include-domains': { type: 'string' },
       'exclude-domains': { type: 'string' },
+      'include-text': { type: 'string' },
+      'exclude-text': { type: 'string' },
       'start-date': { type: 'string' },
       'end-date': { type: 'string' },
+      'start-crawl-date': { type: 'string' },
+      'end-crawl-date': { type: 'string' },
+      'user-location': { type: 'string' },
+      'additional-queries': { type: 'string' },
+      moderation: { type: 'boolean' },
       autoprompt: { type: 'boolean' },
+      livecrawl: { type: 'string' },
+      'livecrawl-timeout': { type: 'string' },
+      'max-characters': { type: 'string' },
+      subpages: { type: 'string' },
+      'subpage-target': { type: 'string' },
+      'extras-links': { type: 'string' },
+      'extras-image-links': { type: 'string' },
       model: { type: 'string' },
       stream: { type: 'boolean' },
       'system-prompt': { type: 'string' },
@@ -157,7 +191,13 @@ async function main() {
       requireArgs(args, 'search', 'a query argument');
       if (commandArgs.type && !isValidSearchType(commandArgs.type)) {
         console.error(
-          'Error: --type must be one of: auto, fast, deep, instant'
+          'Error: --type must be one of: auto, fast, instant, keyword, neural, hybrid, deep-lite, deep, deep-reasoning'
+        );
+        process.exit(1);
+      }
+      if (commandArgs.livecrawl && !isValidLivecrawl(commandArgs.livecrawl)) {
+        console.error(
+          'Error: --livecrawl must be one of: never, fallback, always, auto, preferred'
         );
         process.exit(1);
       }
@@ -172,6 +212,12 @@ async function main() {
 
     case 'contents': {
       requireArgs(args, 'contents', 'at least one URL');
+      if (commandArgs.livecrawl && !isValidLivecrawl(commandArgs.livecrawl)) {
+        console.error(
+          'Error: --livecrawl must be one of: never, fallback, always, auto, preferred'
+        );
+        process.exit(1);
+      }
       await contents.contents(
         client,
         args,
@@ -186,6 +232,12 @@ async function main() {
         console.error('Error: similar requires a URL argument');
         process.exit(1);
       }
+      if (commandArgs.livecrawl && !isValidLivecrawl(commandArgs.livecrawl)) {
+        console.error(
+          'Error: --livecrawl must be one of: never, fallback, always, auto, preferred'
+        );
+        process.exit(1);
+      }
       await similar.similar(
         client,
         url,
@@ -197,7 +249,7 @@ async function main() {
     case 'answer': {
       requireArgs(args, 'answer', 'a query argument');
       if (commandArgs.model && !isValidAnswerModel(commandArgs.model)) {
-        console.error('Error: --model must be one of: exa, exa-pro');
+        console.error('Error: --model must be: exa');
         process.exit(1);
       }
       const query = args.join(' ');

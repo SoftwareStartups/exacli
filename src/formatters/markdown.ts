@@ -28,6 +28,16 @@ export function formatSearchResults(
       highlights?: string[];
       highlightScores?: number[];
       summary?: string;
+      subpages?: Array<{
+        title?: string | null;
+        url: string;
+        text?: string;
+        summary?: string;
+      }>;
+      extras?: {
+        links?: string[];
+        imageLinks?: string[];
+      };
     }>;
   };
 
@@ -83,6 +93,36 @@ export function formatSearchResults(
 
     if (result.summary) {
       output += `### Summary\n\n${result.summary}\n\n`;
+    }
+
+    if (result.extras) {
+      if (result.extras.links && result.extras.links.length > 0) {
+        output += '### Links\n\n';
+        for (const link of result.extras.links) {
+          output += `- ${link}\n`;
+        }
+        output += '\n';
+      }
+      if (result.extras.imageLinks && result.extras.imageLinks.length > 0) {
+        output += '### Image Links\n\n';
+        for (const link of result.extras.imageLinks) {
+          output += `- ${link}\n`;
+        }
+        output += '\n';
+      }
+    }
+
+    if (result.subpages && result.subpages.length > 0) {
+      output += '### Subpages\n\n';
+      for (let j = 0; j < result.subpages.length; j++) {
+        const subpage = result.subpages[j];
+        if (!subpage) continue;
+        output += `${j + 1}. [${subpage.title || 'Untitled'}](${subpage.url})\n`;
+        if (subpage.summary) {
+          output += `   ${subpage.summary}\n`;
+        }
+      }
+      output += '\n';
     }
 
     output += '---\n\n';

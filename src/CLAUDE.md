@@ -16,16 +16,20 @@ Clerc CLI framework: `app.ts` (command registration), `format.ts` (output format
 ### commands/
 
 One file per command type:
-- **search.ts** — Web search with query, date filters, domain filters
-- **contents.ts** — URL content extraction (text, highlights, summary)
-- **similar.ts** — Find pages similar to a given URL
-- **answer.ts** — AI-powered answers with source citations
+- **search.ts** — Web search. Supports `--type` (auto/fast/instant/keyword/neural/hybrid + deep-lite/deep/deep-reasoning), domain and text filters (`--include-domains`/`--exclude-domains`/`--include-text`/`--exclude-text`), published + crawl date ranges, `--user-location`, `--moderation`, `--autoprompt`, and `--additional-queries` (deep types only)
+- **contents.ts** — URL content extraction. Shares the content options below
+- **similar.ts** — Find pages similar to a given URL. Shares the content options below
+- **answer.ts** — AI-powered answers with source citations. `--model` is `exa` only (`exa-pro` deprecated); also `--stream`, `--system-prompt`, `--user-location`
 - **research.ts** — Async research tasks (create, poll status, list results)
 - **types.ts** — Shared command arg interfaces
 
+Content options (shared by search/contents/similar via `applyContentOptions`): `--text`
+(+`--max-characters`), `--highlights`, `--summary`, `--livecrawl`, `--livecrawl-timeout`,
+`--max-age-hours`, `--subpages`, `--subpage-target`, `--extras-links`, `--extras-image-links`.
+
 ### formatters/
 
-**markdown.ts** — Formats search results, content, and answers as readable markdown. Default output mode; `--json` flag bypasses formatting for raw JSON.
+**markdown.ts** — Formats search results, content, and answers as readable markdown (including subpages and `extras` links/image links when present). Default output mode; `--json` flag bypasses formatting for raw JSON.
 
 ### utils/
 

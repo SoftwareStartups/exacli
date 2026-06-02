@@ -4,6 +4,9 @@ import {
   parseNumber,
   isValidUrl,
   parseStringList,
+  isValidSearchType,
+  isValidAnswerModel,
+  isValidLivecrawl,
 } from '../src/utils/validation.js';
 
 describe('isValidNumber', () => {
@@ -88,5 +91,61 @@ describe('parseStringList', () => {
     expect(parseStringList(null)).toBeUndefined();
     expect(parseStringList(undefined)).toBeUndefined();
     expect(parseStringList(['a', 'b'])).toBeUndefined();
+  });
+});
+
+describe('isValidSearchType', () => {
+  test('accepts non-deep search types', () => {
+    for (const type of [
+      'auto',
+      'fast',
+      'instant',
+      'keyword',
+      'neural',
+      'hybrid',
+    ]) {
+      expect(isValidSearchType(type)).toBe(true);
+    }
+  });
+
+  test('accepts deep search variants', () => {
+    expect(isValidSearchType('deep-lite')).toBe(true);
+    expect(isValidSearchType('deep')).toBe(true);
+    expect(isValidSearchType('deep-reasoning')).toBe(true);
+  });
+
+  test('rejects unknown types', () => {
+    expect(isValidSearchType('magic')).toBe(false);
+    expect(isValidSearchType('')).toBe(false);
+    expect(isValidSearchType(undefined)).toBe(false);
+  });
+});
+
+describe('isValidAnswerModel', () => {
+  test('accepts exa', () => {
+    expect(isValidAnswerModel('exa')).toBe(true);
+  });
+
+  test('rejects deprecated exa-pro', () => {
+    expect(isValidAnswerModel('exa-pro')).toBe(false);
+  });
+
+  test('rejects unknown models', () => {
+    expect(isValidAnswerModel('gpt')).toBe(false);
+    expect(isValidAnswerModel(undefined)).toBe(false);
+  });
+});
+
+describe('isValidLivecrawl', () => {
+  test('accepts valid livecrawl modes', () => {
+    for (const mode of ['never', 'fallback', 'always', 'auto', 'preferred']) {
+      expect(isValidLivecrawl(mode)).toBe(true);
+    }
+  });
+
+  test('rejects unknown modes', () => {
+    expect(isValidLivecrawl('sometimes')).toBe(false);
+    expect(isValidLivecrawl('')).toBe(false);
+    expect(isValidLivecrawl(undefined)).toBe(false);
   });
 });

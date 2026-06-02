@@ -67,6 +67,50 @@ describe('formatSearchResults', () => {
     const output = formatSearchResults(minimalResponse);
     expect(output).toContain('Untitled');
   });
+
+  test('renders extras links and image links', () => {
+    const response = {
+      results: [
+        {
+          title: 'With extras',
+          url: 'https://example.com',
+          id: 'https://example.com',
+          extras: {
+            links: ['https://example.com/a'],
+            imageLinks: ['https://example.com/img.png'],
+          },
+        },
+      ],
+    };
+    const output = formatSearchResults(response);
+    expect(output).toContain('### Links');
+    expect(output).toContain('https://example.com/a');
+    expect(output).toContain('### Image Links');
+    expect(output).toContain('https://example.com/img.png');
+  });
+
+  test('renders subpages', () => {
+    const response = {
+      results: [
+        {
+          title: 'With subpages',
+          url: 'https://example.com',
+          id: 'https://example.com',
+          subpages: [
+            {
+              title: 'About',
+              url: 'https://example.com/about',
+              summary: 'About summary',
+            },
+          ],
+        },
+      ],
+    };
+    const output = formatSearchResults(response);
+    expect(output).toContain('### Subpages');
+    expect(output).toContain('[About](https://example.com/about)');
+    expect(output).toContain('About summary');
+  });
 });
 
 describe('formatAnswerResponse', () => {

@@ -44,6 +44,16 @@ function buildSearchOptions(args: SearchCommandArgs) {
     options.excludeDomains = excludeDomains;
   }
 
+  const includeText = parseStringList(args['include-text']);
+  if (includeText && includeText.length > 0) {
+    options.includeText = includeText;
+  }
+
+  const excludeText = parseStringList(args['exclude-text']);
+  if (excludeText && excludeText.length > 0) {
+    options.excludeText = excludeText;
+  }
+
   if (args.category) {
     options.category = args.category;
   }
@@ -56,12 +66,33 @@ function buildSearchOptions(args: SearchCommandArgs) {
     options.endPublishedDate = args['end-date'];
   }
 
+  if (args['start-crawl-date']) {
+    options.startCrawlDate = args['start-crawl-date'];
+  }
+
+  if (args['end-crawl-date']) {
+    options.endCrawlDate = args['end-crawl-date'];
+  }
+
+  if (args['user-location']) {
+    options.userLocation = args['user-location'];
+  }
+
+  if (args.moderation === true) {
+    options.moderation = true;
+  }
+
   if (args.autoprompt === true) {
     options.useAutoprompt = true;
   }
 
   if (args.type) {
     options.type = args.type;
+  }
+
+  const additionalQueries = parseStringList(args['additional-queries']);
+  if (additionalQueries && additionalQueries.length > 0) {
+    options.additionalQueries = additionalQueries;
   }
 
   applyContentOptions(options, args);
