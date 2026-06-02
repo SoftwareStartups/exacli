@@ -10,7 +10,7 @@ AI-powered web research with semantic search, category filters, content extracti
 ## Rules
 
 1. Always use `--json` and pipe through `jq` to keep context small
-2. Use `--highlights` for snippets, `--text` for full content, `--summary` for AI-generated overview
+2. Use `--highlights` for snippets, `--text` for full content, `--summary` for AI-generated overview. Cap `--text` size with `--max-characters <n>` to keep context small
 3. **NEVER use `--poll`** — it blocks 3–5 minutes and gets killed by the Bash tool timeout. Use the non-blocking start-then-check pattern (see Deep Research below)
 4. Deep research is a two-step process: start with `exacli research`, then poll with `exacli research-status` in separate Bash calls
 
@@ -41,20 +41,22 @@ exacli research-status "task-id" --json | jq '.status'
 Discipline:
 - Set `--num-results` to 5 unless more are explicitly needed
 - Prefer `--highlights` over `--text` for search results
-- Only use `--text` on `exacli contents` when full text is essential
+- Only use `--text` on `exacli contents` when full text is essential; pair with `--max-characters` to bound size
 - Use `--summary` when you need a quick overview without raw text
 - Only fetch contents for the 1–2 most relevant URLs, not all results
+- Use `--livecrawl always` to force fresh content, or `--max-age-hours <n>` to control cache freshness (0 = always fresh)
 
 ## Search Categories
 
-`company`, `research paper`, `news`, `pdf`, `tweet`, `personal site`, `financial report`, `people`
+`company`, `research paper`, `news`, `pdf`, `personal site`, `financial report`, `people`
 
 ## Search Types
 
 - `auto` — default, automatically chosen
 - `fast` — quick results
-- `deep` — thorough, best for research
 - `instant` — lowest latency
+- `keyword`, `neural`, `hybrid` — retrieval-strategy variants
+- `deep-lite`, `deep`, `deep-reasoning` — thorough, best for research; support `--additional-queries`
 
 ## Common Patterns
 
@@ -74,8 +76,11 @@ exacli search "React hooks" --include-domains github.com,reactjs.org --json | jq
 # Domain filtering — exclude
 exacli search "Python tutorials" --exclude-domains w3schools.com --json | jq '[.results[] | {title, url}]'
 
-# Extract content from a URL
-exacli contents "https://example.com/article" --text --json | jq '.results[0] | {title, text}'
+# Require specific text in results (precise filtering)
+exacli search "language models" --include-text "GPT" --num-results 5 --json | jq '[.results[] | {title, url}]'
+
+# Extract content from a URL, capped to keep context small
+exacli contents "https://example.com/article" --text --max-characters 500 --json | jq '.results[0] | {title, text}'
 
 # Find similar pages
 exacli similar "https://openai.com/research" --num-results 5 --json | jq '[.results[] | {title, url}]'
