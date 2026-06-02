@@ -36,6 +36,10 @@ task compile:all                     # Build binaries for all 6 platforms
 src/
 ├── index.ts              # CLI entry point (arg parsing, help, command dispatch)
 ├── client.ts             # Exa SDK wrapper
+├── auth/
+│   └── keychain.ts       # OS keychain credential storage (Bun Secrets API)
+├── cli/
+│   └── commands/         # login.ts / logout.ts (auth subcommand handlers)
 ├── commands/
 │   ├── types.ts          # Command arg interfaces and shared types
 │   ├── search.ts         # Web search
@@ -49,6 +53,8 @@ src/
     ├── commands.ts       # Shared command helpers (error handling, content options, citations)
     └── validation.ts     # Input validation (numbers, URLs, string lists)
 tests/
+├── helpers/              # mock-client.ts, process-exit.ts
+├── unit/auth/            # keychain.test.ts
 ├── validation.test.ts
 ├── formatters.test.ts
 ├── commands.test.ts
