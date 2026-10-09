@@ -100,7 +100,8 @@ describe('E2E Tests - Real API', () => {
     }, 30000);
   });
 
-  describe('research commands', () => {
+  // Exa retired the Research API; re-enable once research moves to its replacement.
+  describe.skip('research commands', () => {
     test('creates research task', async () => {
       await withRealApi(() =>
         research.researchCreate(client, 'Latest developments in AI', {})
