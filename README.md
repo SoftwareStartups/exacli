@@ -65,7 +65,7 @@ export EXA_API_KEY="your-api-key-here"
 Or pass it with each command:
 
 ```bash
-exacli search "AI startups" --api-key "your-api-key-here"
+exacli search "AI startups" --api-key "$MY_EXA_KEY"
 ```
 
 Get your API key at [https://dashboard.exa.ai/api-keys](https://dashboard.exa.ai/api-keys)
