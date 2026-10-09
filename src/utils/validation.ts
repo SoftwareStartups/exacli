@@ -57,8 +57,3 @@ export function isValidLivecrawl(value: unknown): value is string {
   const validOptions = ['never', 'fallback', 'always', 'auto', 'preferred'];
   return typeof value === 'string' && validOptions.includes(value);
 }
-
-export function isValidResearchModel(value: unknown): value is string {
-  const validModels = ['fast', 'regular', 'pro'];
-  return typeof value === 'string' && validModels.includes(value);
-}

@@ -20,7 +20,6 @@ One file per command type:
 - **contents.ts** — URL content extraction. Shares the content options below
 - **similar.ts** — Find pages similar to a given URL. Shares the content options below
 - **answer.ts** — AI-powered answers with source citations. `--model` is `exa` only (`exa-pro` deprecated); also `--stream`, `--system-prompt`, `--user-location`
-- **research.ts** — Async research tasks (create, poll status, list results)
 - **types.ts** — Shared command arg interfaces
 
 Content options (shared by search/contents/similar via `applyContentOptions`): `--text`
@@ -40,5 +39,4 @@ Content options (shared by search/contents/similar via `applyContentOptions`): `
 
 - **Commands return raw results** from the Exa SDK; formatters transform them for display
 - **Markdown is the default output** — human-readable, structured. `--json` emits the raw API response
-- **Research tasks are async** — `research` starts a task, `research-status` polls it, `research-list` shows all tasks
 - **Validation at the edge** — `utils/validation.ts` validates CLI input before passing to commands

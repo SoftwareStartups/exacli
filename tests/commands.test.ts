@@ -3,7 +3,6 @@ import * as search from '../src/commands/search.js';
 import * as contents from '../src/commands/contents.js';
 import * as similar from '../src/commands/similar.js';
 import * as answer from '../src/commands/answer.js';
-import * as research from '../src/commands/research.js';
 import {
   hasContentOptions,
   applyContentOptions,
@@ -236,58 +235,6 @@ describe('answer command', () => {
         userLocation: 'US',
       })
     );
-  });
-});
-
-describe('research commands', () => {
-  test('researchCreate maps model alias to API model name', async () => {
-    const createMock = mock(() => ({
-      researchId: 'test-id',
-      status: 'in_progress',
-    }));
-    const client = asExaClient({ research: { create: createMock } });
-    const restore = stubProcessExit();
-
-    await research.researchCreate(client, 'test instructions', {
-      model: 'fast',
-    });
-
-    restore();
-    expect(createMock).toHaveBeenCalledWith({
-      instructions: 'test instructions',
-      model: 'exa-research-fast',
-    });
-  });
-
-  test('researchStatus requests events for the given ID', async () => {
-    const getMock = mock(() => ({
-      researchId: 'test-id',
-      status: 'completed',
-    }));
-    const client = asExaClient({ research: { get: getMock } });
-    const restore = stubProcessExit();
-
-    await research.researchStatus(client, 'test-id', {});
-
-    restore();
-    expect(getMock).toHaveBeenCalledWith('test-id', { events: true });
-  });
-
-  test('researchList forwards limit and cursor as parsed values', async () => {
-    const listMock = mock(() => ({ data: [], hasMore: false }));
-    const client = asExaClient({ research: { list: listMock } });
-    const restore = stubProcessExit();
-
-    await research.researchList(client, {
-      limit: '10',
-      cursor: 'test-cursor',
-    });
-
-    restore();
-    expect(listMock).toHaveBeenCalledWith({
-      limit: 10,
-      cursor: 'test-cursor',
-    });
   });
 });
 

@@ -1,6 +1,6 @@
 # Exacli
 
-Bun-native TypeScript CLI for Exa AI search API. Semantic search, content extraction, AI answers, and automated research.
+Bun-native TypeScript CLI for Exa AI search API. Semantic search, content extraction, and AI answers.
 
 ## Environment Variables
 
@@ -45,8 +45,7 @@ src/
 │   ├── search.ts         # Web search
 │   ├── contents.ts       # URL content extraction
 │   ├── similar.ts        # Similar page discovery
-│   ├── answer.ts         # AI-powered answers
-│   └── research.ts       # Research tasks (create, status, list)
+│   └── answer.ts         # AI-powered answers
 ├── formatters/
 │   └── markdown.ts       # Markdown + JSON output formatting
 └── utils/

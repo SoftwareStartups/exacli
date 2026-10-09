@@ -50,20 +50,6 @@ export interface AnswerCommandArgs extends BaseCommandArgs {
   'user-location'?: string;
 }
 
-export interface ResearchCreateArgs extends BaseCommandArgs {
-  model?: string;
-  poll?: boolean;
-  'poll-interval'?: string;
-  timeout?: string;
-}
-
-export interface ResearchStatusArgs extends BaseCommandArgs {}
-
-export interface ResearchListArgs extends BaseCommandArgs {
-  limit?: string;
-  cursor?: string;
-}
-
 export interface Citation {
   title?: string | null;
   url: string;

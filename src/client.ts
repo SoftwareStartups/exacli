@@ -13,8 +13,6 @@ export type {
   AnswerOptions,
   SearchResponse,
   AnswerResponse,
-  Research,
-  ResearchCreateRequest,
 } from 'exa-js';
 
 export function createClient(apiKey: string): ExaClient {

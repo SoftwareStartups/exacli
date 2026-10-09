@@ -1,6 +1,6 @@
 # Exacli
 
-A Bun-native TypeScript CLI for the [Exa AI](https://exa.ai) search API. Search the web semantically, extract content from URLs, get AI-powered answers with citations, and conduct automated research - all from your terminal.
+A Bun-native TypeScript CLI for the [Exa AI](https://exa.ai) search API. Search the web semantically, extract content from URLs, and get AI-powered answers with citations, all from your terminal.
 
 > **Attribution:** Based on [exa-cli](https://github.com/sandiiarov/exa-cli) by Alex Sandiiarov. Now maintained by [SoftwareStartups](https://github.com/SoftwareStartups).
 
@@ -12,7 +12,6 @@ A Bun-native TypeScript CLI for the [Exa AI](https://exa.ai) search API. Search 
 - Extract full text, highlights, and summaries from URLs
 - Get AI-generated answers with source citations
 - Find pages similar to any URL
-- Conduct automated deep research tasks
 
 ## Installation
 
@@ -130,24 +129,6 @@ exacli answer "Compare transformer architectures" --model exa-pro
 
 **Options:** `--text`, `--model <exa|exa-pro>`, `--stream`, `--system-prompt <text>`
 
-### `research <instructions>`
-
-Create automated research tasks.
-
-```bash
-exacli research "Latest SpaceX valuation" --poll
-exacli research "CRISPR applications" --model pro --poll --timeout 300000
-```
-
-**Options:** `--model <fast|regular|pro>`, `--poll`, `--poll-interval <ms>`, `--timeout <ms>`
-
-### `research-status <id>` / `research-list`
-
-```bash
-exacli research-status "task-id"
-exacli research-list --limit 10
-```
-
 ## Global Options
 
 | Flag | Description |
@@ -185,8 +166,7 @@ exacli/
 │   │   ├── search.ts         # Web search
 │   │   ├── contents.ts       # URL content extraction
 │   │   ├── similar.ts        # Similar page discovery
-│   │   ├── answer.ts         # AI-powered answers
-│   │   └── research.ts       # Research tasks
+│   │   └── answer.ts         # AI-powered answers
 │   ├── formatters/
 │   │   └── markdown.ts       # Output formatting
 │   └── utils/

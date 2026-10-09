@@ -2,7 +2,6 @@ import { describe, test, expect } from 'bun:test';
 import {
   formatSearchResults,
   formatAnswerResponse,
-  formatResearchTask,
   formatError,
   formatSuccess,
 } from '../src/formatters/markdown.js';
@@ -148,79 +147,6 @@ describe('formatAnswerResponse', () => {
     const output = formatAnswerResponse(mockAnswerResponse, { json: true });
     const parsed = JSON.parse(output);
     expect(parsed.answer).toBe('This is the answer');
-  });
-});
-
-describe('formatResearchTask', () => {
-  const mockTask = {
-    researchId: 'task-123',
-    status: 'completed',
-    instructions: 'Research something',
-    costDollars: {
-      total: 0.0059,
-      numSearches: 1,
-      numPages: 2,
-      reasoningTokens: 100,
-    },
-    output: {
-      parsed: { result: 'value' },
-      content: 'Raw output content',
-    },
-    citations: [
-      { url: 'https://example.com/1', title: 'Source One' },
-      { url: 'https://example.com/2', title: null },
-    ],
-    events: [
-      {
-        createdAt: 1705315200000,
-        eventType: 'research-start',
-        message: 'Started research',
-      },
-    ],
-  };
-
-  test('formats research task in markdown', () => {
-    const output = formatResearchTask(mockTask);
-    expect(output).toContain('# Research Task');
-    expect(output).toContain('task-123');
-    expect(output).toContain('completed');
-    expect(output).toContain('Research something');
-    expect(output).toContain('"result": "value"');
-    expect(output).toContain('Raw output content');
-    expect(output).toContain('research-start');
-  });
-
-  test('formats citations as sources', () => {
-    const output = formatResearchTask(mockTask);
-    expect(output).toContain('## Sources');
-    expect(output).toContain('[Source One](https://example.com/1)');
-    expect(output).toContain('[Untitled](https://example.com/2)');
-  });
-
-  test('formats cost breakdown', () => {
-    const output = formatResearchTask(mockTask);
-    expect(output).toContain('$0.0059');
-    expect(output).toContain('1 searches');
-    expect(output).toContain('2 pages');
-    expect(output).toContain('100 reasoning tokens');
-  });
-
-  test('handles tasks without output or events', () => {
-    const minimalTask = {
-      researchId: 'task-456',
-      status: 'pending',
-    };
-    const output = formatResearchTask(minimalTask);
-    expect(output).toContain('task-456');
-    expect(output).toContain('pending');
-    expect(output).not.toContain('## Output');
-    expect(output).not.toContain('## Events');
-  });
-
-  test('returns JSON when json option is true', () => {
-    const output = formatResearchTask(mockTask, { json: true });
-    const parsed = JSON.parse(output);
-    expect(parsed.researchId).toBe('task-123');
   });
 });
 

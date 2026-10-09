@@ -7,7 +7,6 @@ import * as search from './commands/search.js';
 import * as contents from './commands/contents.js';
 import * as similar from './commands/similar.js';
 import * as answer from './commands/answer.js';
-import * as research from './commands/research.js';
 import { getSecret } from './auth/keychain.js';
 import * as loginCmd from './cli/commands/login.js';
 import * as logoutCmd from './cli/commands/logout.js';
@@ -17,14 +16,10 @@ import type {
   SimilarCommandArgs,
   ContentsCommandArgs,
   AnswerCommandArgs,
-  ResearchCreateArgs,
-  ResearchStatusArgs,
-  ResearchListArgs,
 } from './commands/types.js';
 import {
   isValidSearchType,
   isValidAnswerModel,
-  isValidResearchModel,
   isValidLivecrawl,
 } from './utils/validation.js';
 
@@ -40,9 +35,6 @@ Commands:
   contents <url...>         Get contents of URLs
   similar <url>             Find similar pages
   answer <query>            Get AI-powered answers
-  research <instructions>   Create a research task
-  research-status <id>      Check research task status
-  research-list             List research tasks
   login                    Store API key locally
   logout                   Remove stored API key
 
@@ -92,21 +84,11 @@ Answer Options:
   --system-prompt <text>   System prompt
   --user-location <cc>     Two-letter ISO country code (e.g. US)
 
-Research Options:
-  --model <fast|regular|pro>  Research model
-  --poll                   Poll until completion
-  --poll-interval <ms>     Polling interval (default: 1000)
-  --timeout <ms>           Timeout in ms (default: 600000)
-  --limit <n>              Number of tasks to list
-  --cursor <token>         Pagination cursor
-
 Examples:
   exacli search "AI startups" --num-results 5 --text
   exacli contents "https://example.com" --text
   exacli answer "What is quantum computing?"
   exacli similar "https://example.com" --exclude-source-domain
-  exacli research "Latest AI developments" --poll
-  exacli research-status abc-123
 `;
 
 async function main() {
@@ -145,11 +127,6 @@ async function main() {
       model: { type: 'string' },
       stream: { type: 'boolean' },
       'system-prompt': { type: 'string' },
-      poll: { type: 'boolean' },
-      'poll-interval': { type: 'string' },
-      timeout: { type: 'string' },
-      limit: { type: 'string' },
-      cursor: { type: 'string' },
       'exclude-source-domain': { type: 'boolean' },
       'max-age-hours': { type: 'string' },
       'skip-validation': { type: 'boolean' },
@@ -257,43 +234,6 @@ async function main() {
         client,
         query,
         commandArgs as unknown as AnswerCommandArgs
-      );
-      break;
-    }
-
-    case 'research': {
-      requireArgs(args, 'research', 'instructions argument');
-      if (commandArgs.model && !isValidResearchModel(commandArgs.model)) {
-        console.error('Error: --model must be one of: fast, regular, pro');
-        process.exit(1);
-      }
-      const instructions = args.join(' ');
-      await research.researchCreate(
-        client,
-        instructions,
-        commandArgs as unknown as ResearchCreateArgs
-      );
-      break;
-    }
-
-    case 'research-status': {
-      const researchId = args[0];
-      if (!researchId) {
-        console.error('Error: research-status requires a task ID');
-        process.exit(1);
-      }
-      await research.researchStatus(
-        client,
-        researchId,
-        commandArgs as unknown as ResearchStatusArgs
-      );
-      break;
-    }
-
-    case 'research-list': {
-      await research.researchList(
-        client,
-        commandArgs as unknown as ResearchListArgs
       );
       break;
     }

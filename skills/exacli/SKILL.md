@@ -1,18 +1,16 @@
 ---
 name: exacli
-description: Exa AI search API via CLI. Activate when user wants to search the web, find information, extract content from websites, get AI answers with sources, or perform automated research. Examples: "search for AI startups", "extract content from this URL", "research this topic", "find similar pages".
+description: Exa AI search API via CLI. Activate when user wants to search the web, find information, extract content from websites, or get AI answers with sources. Examples: "search for AI startups", "extract content from this URL", "find similar pages".
 ---
 
 # Exacli
 
-AI-powered web research with semantic search, category filters, content extraction, and deep research.
+AI-powered web research with semantic search, category filters, and content extraction.
 
 ## Rules
 
 1. Always use `--json` and pipe through `jq` to keep context small
 2. Use `--highlights` for snippets, `--text` for full content, `--summary` for AI-generated overview. Cap `--text` size with `--max-characters <n>` to keep context small
-3. **NEVER use `--poll`** — it blocks 3–5 minutes and gets killed by the Bash tool timeout. Use the non-blocking start-then-check pattern (see Deep Research below)
-4. Deep research is a two-step process: start with `exacli research`, then poll with `exacli research-status` in separate Bash calls
 
 ## Workflow
 
@@ -25,7 +23,6 @@ AI-powered web research with semantic search, category filters, content extracti
 | Find related pages | `exacli similar "url"` | Have a good result, want more like it |
 | Code / API docs | `exacli search "query" --include-domains github.com,docs.python.org` | Programming questions, library usage |
 | Quick AI answer | `exacli answer "query"` | Need a direct answer with citations |
-| Deep research | `exacli research "instructions"` + `exacli research-status` | Complex multi-step research task |
 
 Query tips: describe the ideal page, not keywords. "blog post comparing React and Vue performance" beats "React vs Vue". If highlights are insufficient, follow up with `exacli contents` on the best URLs.
 
@@ -35,7 +32,6 @@ Default: formatted markdown. With `--json`: raw API JSON.
 
 ```bash
 exacli search "query" --json | jq '.results[0].title'
-exacli research-status "task-id" --json | jq '.status'
 ```
 
 Discipline:
@@ -88,30 +84,6 @@ exacli similar "https://openai.com/research" --num-results 5 --json | jq '[.resu
 # AI-powered answer with citations
 exacli answer "What are the main differences between React and Vue?" --json | jq '{answer, citations}'
 ```
-
-## Deep Research (Non-Blocking)
-
-Deep research takes 3–5 minutes. **NEVER use `--poll`** — it blocks and the Bash timeout kills it. Use start-then-check instead:
-
-```bash
-# Step 1: Start research (returns immediately with task ID)
-exacli research "Compare cloud GPU pricing across AWS, GCP, and Azure" --model regular --json | jq '{researchId, status}'
-
-# Step 2: Check status (repeat every 30 seconds until status is "completed")
-exacli research-status "RESEARCH_ID" --json | jq '{status}'
-
-# Step 3: Get results when complete
-exacli research-status "RESEARCH_ID" --json | jq '{status, output}'
-```
-
-Deep research typically completes in 3–5 minutes (6–10 checks at 30s intervals). Between checks, do other work or use `sleep 30` in a Bash call.
-
-```bash
-# List all research tasks
-exacli research-list --limit 10 --json | jq '[.data[] | {id: .researchId, status}]'
-```
-
-Research models: `fast` (quick), `regular` (balanced, default), `pro` (highest quality).
 
 ## Security
 

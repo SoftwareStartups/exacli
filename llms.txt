@@ -1,10 +1,10 @@
 # Exacli
 
-> A CLI tool for the Exa AI search API. Search the web semantically, extract content from URLs, get AI-powered answers with citations, and conduct automated research from your terminal.
+> A CLI tool for the Exa AI search API. Search the web semantically, extract content from URLs, and get AI-powered answers with citations from your terminal.
 
 ## Overview
 
-Exacli is a command-line interface for the Exa AI search API. It provides commands for semantic web search, content extraction, AI-powered Q&A, and automated research tasks. Built with Bun and TypeScript, it outputs formatted markdown by default with JSON support for scripting.
+Exacli is a command-line interface for the Exa AI search API. It provides commands for semantic web search, content extraction, and AI-powered Q&A. Built with Bun and TypeScript, it outputs formatted markdown by default with JSON support for scripting.
 
 ## Installation
 
@@ -48,9 +48,6 @@ exacli answer "What is quantum computing?"
 
 # Find similar pages
 exacli similar "https://example.com/article"
-
-# Conduct automated research
-exacli research "Latest SpaceX valuation" --poll
 ```
 
 ## Core Commands
@@ -116,37 +113,6 @@ exacli answer "query" [options]
 - `--stream`: Stream response in real-time
 - `--system-prompt <text>`: Custom system prompt
 
-### Research
-Create automated research tasks.
-
-```bash
-exacli research "instructions" [options]
-```
-
-**Options:**
-- `--model <fast|regular|pro>`: Research model
-- `--poll`: Poll until completion
-- `--poll-interval <ms>`: Polling interval (default: 1000)
-- `--timeout <ms>`: Timeout (default: 600000)
-
-### Research Status
-Check research task status.
-
-```bash
-exacli research-status <task-id>
-```
-
-### Research List
-List all research tasks.
-
-```bash
-exacli research-list [options]
-```
-
-**Options:**
-- `--limit <n>`: Number of tasks
-- `--cursor <token>`: Pagination cursor
-
 ## Global Options
 
 - `--api-key <key>`: Exa API key
@@ -174,13 +140,6 @@ exacli contents "https://example.com/1" "https://example.com/2" --highlights --s
 exacli answer "What is neural machine translation?"
 exacli answer "Explain large language models" --stream
 exacli answer "Explain recursion" --system-prompt "Explain like I'm 5"
-```
-
-### Research Workflow
-```bash
-exacli research "SpaceX valuation and funding history" --poll
-exacli research-status "task-id"
-exacli research-list --limit 10
 ```
 
 ## Development
