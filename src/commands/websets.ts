@@ -38,8 +38,20 @@ const BASE = '/websets/v0';
 const path = (...segments: string[]) =>
   [BASE, ...segments.map(encodeURIComponent)].join('/');
 
+const isPlainObject = (value: unknown): value is Body =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** Merges flag fields over --body; nested objects (e.g. search) merge too. */
 async function withBody(args: CliArgs, fields: Body): Promise<Body> {
-  return { ...(await parseJsonObject('body', args.body)), ...compact(fields) };
+  const body = (await parseJsonObject('body', args.body)) ?? {};
+  for (const [key, value] of Object.entries(compact(fields))) {
+    const base = body[key];
+    body[key] =
+      isPlainObject(base) && isPlainObject(value)
+        ? { ...base, ...value }
+        : value;
+  }
+  return body;
 }
 
 function buildEntity(args: CliArgs): Body | undefined {
@@ -401,7 +413,8 @@ export const websetMonitors: Record<string, Handler> = {
     1,
     ([id = '']) => path('monitors', id)
   ),
-  runs: listHandler(
+  runs: resourceHandler(
+    'GET',
     'Webset Monitor Runs',
     'webset-monitor runs <monitor-id>',
     1,

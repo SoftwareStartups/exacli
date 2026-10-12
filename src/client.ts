@@ -4,7 +4,7 @@
 
 import pkg from '../package.json' with { type: 'json' };
 
-export const API_BASE_URL = 'https://api.exa.ai';
+const API_BASE_URL = 'https://api.exa.ai';
 
 export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 export type QueryValue = string | number | boolean | string[] | undefined;

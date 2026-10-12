@@ -26,13 +26,13 @@ export function logStatus(message: string): void {
   console.error(message);
 }
 
-export function errorCode(error: unknown): string {
+function errorCode(error: unknown): string {
   if (error instanceof UsageError) return 'USAGE_ERROR';
   if (error instanceof ExaApiError) return error.tag ?? `HTTP_${error.status}`;
   return 'ERROR';
 }
 
-export function errorMessage(error: unknown): string {
+function errorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   const invalidKey =
     error instanceof ExaApiError &&

@@ -283,11 +283,15 @@ export function formatMonitorBatch(result: {
   affected: number;
   ids: string[];
   dry_run: boolean;
+  has_more?: boolean;
 }): string {
   const verb = result.dry_run ? 'Would' : 'Did';
   let output = `# Monitor Batch (${result.dry_run ? 'dry run' : 'executed'})\n\n`;
   output += `${verb} ${result.action} ${result.affected} monitor(s)\n\n`;
   output += result.ids.map((id) => `- ${id}\n`).join('');
+  if (result.has_more) {
+    output += '\nMore monitors match. Raise --limit or run again.\n';
+  }
   if (result.dry_run) output += '\nRe-run with --execute to apply.\n';
   return output;
 }

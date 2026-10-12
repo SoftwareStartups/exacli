@@ -255,7 +255,9 @@ async function main(): Promise<void> {
     );
   }
 
-  const entry = COMMANDS[command];
+  const entry = Object.hasOwn(COMMANDS, command)
+    ? COMMANDS[command]
+    : undefined;
   if (!entry) exitWithUsage(`Unknown command "${command}"`, MAIN_HELP);
 
   let handler: Handler;
@@ -264,7 +266,8 @@ async function main(): Promise<void> {
     handler = entry;
   } else {
     const [sub, ...subRest] = rest;
-    const subHandler = sub ? entry[sub] : undefined;
+    const subHandler =
+      sub && Object.hasOwn(entry, sub) ? entry[sub] : undefined;
     if (!subHandler) {
       exitWithUsage(
         sub

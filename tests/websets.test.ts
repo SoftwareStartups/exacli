@@ -65,6 +65,21 @@ describe('webset', () => {
     });
   });
 
+  test('flags merge into nested --body objects instead of replacing them', async () => {
+    const m = ok();
+    await websets.websets.create?.(m.client, [], {
+      body: '{"search":{"query":"x","exclude":[{"source":"webset","id":"w0"}]}}',
+      count: '5',
+    });
+    expect(requestCall(m)[2]?.body).toEqual({
+      search: {
+        query: 'x',
+        exclude: [{ source: 'webset', id: 'w0' }],
+        count: 5,
+      },
+    });
+  });
+
   test('custom entities require a description', async () => {
     await expect(
       websets.websets.create?.(ok().client, [], { entity: 'custom' })

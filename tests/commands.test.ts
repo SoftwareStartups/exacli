@@ -143,6 +143,45 @@ describe('search', () => {
     );
   });
 
+  test('collects citations from search delta and grounding chunks', async () => {
+    const m = mockClient(undefined, [
+      {
+        data: '{"type":"text-delta","choices":[{"delta":{"content":"Hi","citations":[{"url":"https://a.com","title":"A","id":"1"}]}}]}',
+      },
+      {
+        data: '{"type":"grounding","grounding":[{"field":"x","confidence":"high","citations":[{"url":"https://b.com","title":"B"}]}]}',
+      },
+    ]);
+    await search(m.client, ['q'], {
+      stream: true,
+      'output-schema': '{"type":"text"}',
+    });
+    const printed = String(logSpy.mock.calls.at(-1)?.[0]);
+    expect(printed).toContain('[A](https://a.com)');
+    expect(printed).toContain('[B](https://b.com)');
+  });
+
+  test('fails on error chunks inside search and answer streams', async () => {
+    const searchStream = mockClient(undefined, [
+      { data: '{"type":"error","error":{"message":"synthesis failed"}}' },
+    ]);
+    await expect(
+      search(searchStream.client, ['q'], {
+        stream: true,
+        'output-schema': '{"type":"text"}',
+      })
+    ).rejects.toThrow('synthesis failed');
+
+    const answerStream = mockClient(undefined, [
+      {
+        data: '{"tag":"ERROR","payload":{"error":{"code":500,"message":"boom"}}}',
+      },
+    ]);
+    await expect(
+      answer(answerStream.client, ['q'], { stream: true })
+    ).rejects.toThrow('boom');
+  });
+
   test('requires an output schema to stream', async () => {
     await expect(
       search(mockClient().client, ['q'], { stream: true })
@@ -345,6 +384,16 @@ describe('agent', () => {
     expect(String(logSpy.mock.calls.at(-1)?.[0])).toContain('Done');
   });
 
+  test('run --stream also accepts spec-shaped {event, data} payloads', async () => {
+    const m = mockClient(undefined, [
+      {
+        data: '{"id":"1","event":"agent_run.completed","data":{"id":"r1","status":"completed","output":{"text":"Wrapped"}},"createdAt":"2026-10-12T00:00:00Z"}',
+      },
+    ]);
+    await agent.agentRun(m.client, ['q'], { stream: true });
+    expect(String(logSpy.mock.calls.at(-1)?.[0])).toContain('Wrapped');
+  });
+
   test('run rejects unknown effort levels', async () => {
     await expect(
       agent.agentRun(mockClient().client, ['q'], { effort: 'huge' })
@@ -408,6 +457,17 @@ describe('monitor', () => {
         },
       },
     ]);
+  });
+
+  test('create sends the beta header for dynamic highlights', async () => {
+    const m = mockClient(() => ({ id: 'm1', status: 'active' }));
+    await monitor.monitorCreate(m.client, ['q'], {
+      'webhook-url': 'https://hooks.example.com/exa',
+      'dynamic-highlights': true,
+    });
+    expect(requestCall(m)[2]?.headers).toEqual({
+      'Exa-Beta': DYNAMIC_HIGHLIGHTS_BETA,
+    });
   });
 
   test('create requires a webhook URL', async () => {

@@ -65,13 +65,13 @@ export async function agentRun(
 
   if (args.stream) {
     for await (const event of client.stream('/agent/runs', { body })) {
-      const data: unknown = JSON.parse(event.data);
+      const { name, data } = unwrapAgentEvent(event.event, event.data);
       if (args.json) {
-        printStreamItem({ event: event.event, id: event.id, data }, args);
-      } else if (event.event && TERMINAL_EVENTS.has(event.event)) {
+        printStreamItem({ event: name, id: event.id, data }, args);
+      } else if (name && TERMINAL_EVENTS.has(name)) {
         console.log(formatAgentRun(data as AgentRun));
       } else {
-        logStatus(event.event ?? 'event');
+        logStatus(name ?? 'event');
       }
     }
     return;
@@ -80,6 +80,27 @@ export async function agentRun(
   const run = await client.request<AgentRun>('POST', '/agent/runs', { body });
   const result = args.wait ? await waitForRun(client, run, args) : run;
   printOutput(result, args, formatAgentRun);
+}
+
+/**
+ * The live API puts the event name on the SSE `event:` line and the run in
+ * `data:`; the spec models the payload as `{id, event, data}`. Accept both.
+ */
+function unwrapAgentEvent(
+  sseEvent: string | undefined,
+  raw: string
+): { name?: string; data: unknown } {
+  const payload: unknown = JSON.parse(raw);
+  if (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'event' in payload &&
+    'data' in payload
+  ) {
+    const wrapped = payload as { event?: string; data: unknown };
+    return { name: wrapped.event ?? sseEvent, data: wrapped.data };
+  }
+  return { name: sseEvent, data: payload };
 }
 
 async function waitForRun(

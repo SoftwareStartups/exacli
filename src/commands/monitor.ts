@@ -9,6 +9,7 @@ import {
 } from '../formatters/markdown.js';
 import { printOutput } from '../utils/commands.js';
 import {
+  betaHeaders,
   buildContents,
   compact,
   nonEmpty,
@@ -37,15 +38,16 @@ const monitorPath = (id: string, suffix = '') =>
 async function buildSearch(
   query: string | undefined,
   args: CliArgs
-): Promise<Record<string, unknown> | undefined> {
-  const { contents } = await buildContents(args);
-  return nonEmpty({
+): Promise<{ search?: Record<string, unknown>; betas: string[] }> {
+  const { contents, betas } = await buildContents(args);
+  const search = nonEmpty({
     query,
     numResults: parseInteger('num-results', args['num-results']),
     includeDomains: parseStringList(args['include-domains']),
     excludeDomains: parseStringList(args['exclude-domains']),
     contents,
   });
+  return { search, betas };
 }
 
 function buildWebhook(args: CliArgs): Record<string, unknown> | undefined {
@@ -65,11 +67,12 @@ export async function monitorCreate(
     'monitor create <query> --webhook-url <url>'
   );
   if (!args['webhook-url']) throw new UsageError('--webhook-url is required');
+  const { search, betas } = await buildSearch(query, args);
 
   const monitor = await client.request<Monitor>('POST', '/monitors', {
     body: compact({
       name: args.name,
-      search: await buildSearch(query, args),
+      search,
       trigger: args.period
         ? { type: 'interval', period: args.period }
         : undefined,
@@ -80,6 +83,7 @@ export async function monitorCreate(
       metadata: await parseJsonObject('metadata', args.metadata),
       webhook: buildWebhook(args),
     }),
+    headers: betaHeaders(betas),
   });
   printOutput(monitor, args, formatMonitor);
 }
@@ -93,10 +97,11 @@ export async function monitorUpdate(
   if (args['remove-schedule'] && args.period) {
     throw new UsageError('Use either --period or --remove-schedule, not both');
   }
+  const { search, betas } = await buildSearch(args.query, args);
   const body = compact({
     name: args.name,
     status: parseEnum('status', args.status, ['active', 'paused'] as const),
-    search: await buildSearch(args.query, args),
+    search,
     trigger: args['remove-schedule']
       ? null
       : args.period
@@ -112,6 +117,7 @@ export async function monitorUpdate(
 
   const monitor = await client.request<Monitor>('PATCH', monitorPath(id), {
     body,
+    headers: betaHeaders(betas),
   });
   printOutput(monitor, args, formatMonitor);
 }
@@ -241,6 +247,7 @@ export async function monitorBatch(
     affected: number;
     ids: string[];
     dry_run: boolean;
+    has_more?: boolean;
   }>('POST', '/monitors/batch', {
     body: compact({
       action,
