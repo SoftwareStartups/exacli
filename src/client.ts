@@ -5,6 +5,8 @@
 import pkg from '../package.json' with { type: 'json' };
 
 const API_BASE_URL = 'https://api.exa.ai';
+const REQUEST_TIMEOUT_MS = 5 * 60_000;
+const MAX_SSE_BUFFER = 10 * 1024 * 1024;
 
 export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 export type QueryValue = string | number | boolean | string[] | undefined;
@@ -50,7 +52,8 @@ export function createClient(
     method: HttpMethod,
     path: string,
     options: RequestOptions,
-    accept: string
+    accept: string,
+    signal?: AbortSignal
   ): Promise<Response> => {
     const url = new URL(path, baseUrl);
     for (const [key, value] of Object.entries(options.query ?? {})) {
@@ -69,6 +72,7 @@ export function createClient(
       },
       body:
         options.body === undefined ? undefined : JSON.stringify(options.body),
+      signal,
     });
     if (!response.ok) throw await toApiError(response);
     return response;
@@ -80,9 +84,19 @@ export function createClient(
       path: string,
       options: RequestOptions = {}
     ) {
-      const response = await send(method, path, options, 'application/json');
+      const response = await withTimeout((signal) =>
+        send(method, path, options, 'application/json', signal)
+      );
       const text = await response.text();
-      return (text ? JSON.parse(text) : {}) as T;
+      if (!text) return {} as T;
+      try {
+        return JSON.parse(text) as T;
+      } catch {
+        throw new ExaApiError(
+          'Exa API returned a response that is not JSON',
+          response.status
+        );
+      }
     },
     async *stream(path: string, options: RequestOptions = {}) {
       const response = await send('POST', path, options, 'text/event-stream');
@@ -92,6 +106,50 @@ export function createClient(
       yield* parseSse(response.body);
     },
   };
+}
+
+async function withTimeout<T>(
+  fn: (signal: AbortSignal) => Promise<T>
+): Promise<T> {
+  try {
+    return await fn(AbortSignal.timeout(REQUEST_TIMEOUT_MS));
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'TimeoutError') {
+      throw new Error(
+        `Request timed out after ${REQUEST_TIMEOUT_MS / 1000} seconds`
+      );
+    }
+    throw error;
+  }
+}
+
+/**
+ * Fetches a URL handed out by the API (batch results, import uploads).
+ * Only https is allowed, so a bad response cannot point at local files.
+ */
+export async function fetchExternal(
+  url: string,
+  init: RequestInit = {}
+): Promise<Response> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`Refusing to fetch invalid URL from the API: ${url}`);
+  }
+  if (parsed.protocol !== 'https:') {
+    throw new Error(`Refusing to fetch non-https URL from the API: ${url}`);
+  }
+  return withTimeout((signal) => fetch(parsed, { ...init, signal }));
+}
+
+/** Parses an SSE data payload, reporting non-JSON data clearly. */
+export function parseEventData(data: string): unknown {
+  try {
+    return JSON.parse(data);
+  } catch {
+    throw new Error(`Unexpected stream data: ${data.slice(0, 200)}`);
+  }
 }
 
 async function toApiError(response: Response): Promise<ExaApiError> {
@@ -125,11 +183,19 @@ export async function* parseSse(
 ): AsyncGenerator<SseEvent> {
   const decoder = new TextDecoder();
   let buffer = '';
+  // A CR at a chunk boundary may be the first half of CRLF.
+  let pendingCr = false;
+  const append = (text: string) => {
+    let next = (pendingCr ? '\r' : '') + text;
+    pendingCr = next.endsWith('\r');
+    if (pendingCr) next = next.slice(0, -1);
+    buffer += next.replace(/\r\n?/g, '\n');
+    if (buffer.length > MAX_SSE_BUFFER) {
+      throw new Error('Stream event exceeded the 10 MB limit');
+    }
+  };
   for await (const chunk of body) {
-    buffer = (buffer + decoder.decode(chunk, { stream: true })).replace(
-      /\r\n/g,
-      '\n'
-    );
+    append(decoder.decode(chunk, { stream: true }));
     const parts = buffer.split('\n\n');
     buffer = parts.pop() ?? '';
     for (const part of parts) {
@@ -137,18 +203,23 @@ export async function* parseSse(
       if (event) yield event;
     }
   }
-  const event = parseSseBlock(buffer);
-  if (event) yield event;
+  append(decoder.decode());
+  if (pendingCr) buffer += '\n';
+  for (const part of buffer.split('\n\n')) {
+    const event = parseSseBlock(part);
+    if (event) yield event;
+  }
 }
 
 function parseSseBlock(block: string): SseEvent | undefined {
   const event: SseEvent = { data: '' };
   const data: string[] = [];
   for (const line of block.split('\n')) {
+    // Lines starting with ':' are comments; a line without ':' is a bare field.
     const colon = line.indexOf(':');
-    if (colon <= 0) continue;
-    const field = line.slice(0, colon);
-    const value = line.slice(colon + 1).replace(/^ /, '');
+    if (colon === 0 || line === '') continue;
+    const field = colon < 0 ? line : line.slice(0, colon);
+    const value = colon < 0 ? '' : line.slice(colon + 1).replace(/^ /, '');
     if (field === 'data') data.push(value);
     else if (field === 'event') event.event = value;
     else if (field === 'id') event.id = value;

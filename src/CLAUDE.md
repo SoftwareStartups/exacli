@@ -2,9 +2,9 @@
 
 ## Module Guide
 
-- **index.ts** — Entry point. Declares every flag (`BOOLEAN_FLAGS`/`STRING_FLAGS`, parsed with `parseArgs` in strict mode so unknown flags fail), maps `command [subcommand]` to handlers in `COMMANDS`, resolves the API key, and wraps handlers in `runCommand`.
+- **index.ts** — Entry point. Parses the flags from `commands/types.ts` with `parseArgs` in strict mode (unknown flags fail), maps `command [subcommand]` to handlers in `COMMANDS`, resolves the API key, and wraps handlers in `runCommand`. Usage errors print a JSON envelope with `--json`.
 - **help.ts** — `MAIN_HELP` plus `COMMAND_HELP[command]`, shown for `exacli <command> --help` and on usage errors.
-- **client.ts** — `createClient(apiKey)` returns `{ request, stream }`. `request(method, path, { body, query, headers })` sends JSON with `x-api-key`; `stream()` POSTs with `Accept: text/event-stream` and yields parsed SSE events. Non-2xx responses throw `ExaApiError` (message, status, tag, requestId) from the API error envelope.
+- **client.ts** — `createClient(apiKey)` returns `{ request, stream }`. `request(method, path, { body, query, headers })` sends JSON with `x-api-key`; `stream()` POSTs with `Accept: text/event-stream` and yields parsed SSE events. Non-2xx responses throw `ExaApiError` (message, status, tag, requestId) from the API error envelope. Requests time out after 5 minutes. `fetchExternal()` fetches server-supplied URLs (batch results, import uploads) and only allows https.
 
 ### auth/
 
@@ -26,7 +26,7 @@ Handlers share the signature `(client, positionals, args: CliArgs) => Promise<vo
 - **monitor.ts** — Search monitors and batch actions (dry run unless `--execute`)
 - **batch.ts** — Batch API; every call sends `Exa-Beta: batches-2026-06-06`
 - **websets.ts** — Websets API (`/websets/v0`). Handlers are built with `resourceHandler`/`listHandler` factories; bodies merge `--body <json|@file>` with flag-derived fields (flags win). `webset-import create` also uploads the CSV to the returned `uploadUrl`
-- **types.ts** — `CliArgs`, spec enums, beta tokens, and the response shapes the formatters read
+- **types.ts** — `BOOLEAN_FLAGS`/`STRING_FLAGS`/`MULTIPLE_FLAGS` (repeatable), the `CliArgs` and `Handler` types derived from them, spec enums, beta tokens, and the response shapes the formatters read
 
 ### formatters/
 
@@ -35,9 +35,9 @@ Handlers share the signature `(client, positionals, args: CliArgs) => Promise<vo
 ### utils/
 
 - **options.ts** — `buildContents` (returns `contents` plus required beta tokens), `buildResultFilters`, `buildUserLocation`, `paginationQuery`, `compact`/`nonEmpty`
-- **validation.ts** — `parseNumber`/`parseInteger`/`parseEnum`/`parseJsonObject` (inline JSON or `@file`), `requireArg`. All throw `UsageError`
-- **commands.ts** — `printOutput` (envelope or markdown), `printStreamItem`, `logStatus` (stderr), `runCommand`
-- **stream.ts** — Renders OpenAI-style completion chunks from `/answer` and `/search` streams
+- **validation.ts** — `parseNumber`/`parseInteger`/`parseEnum`/`parseJsonObject` (inline JSON or `@file`), `parseMetadata` (string values), `pathSegment` (encodes IDs, rejects `.`/`..`), `readTextFile`, `requireArg`. All throw `UsageError`
+- **commands.ts** — `printOutput` (envelope or markdown), `printText`/`sanitize` (strip terminal control characters from human output), `printStreamItem`, `logStatus` (stderr), `runCommand`
+- **stream.ts** — Renders completion chunks from `/answer` and `/search` streams; a stream without `[DONE]` is an error
 
 ## Key Patterns
 

@@ -10,13 +10,15 @@ export class UsageError extends Error {
   }
 }
 
+const DECIMAL = /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i;
+
 export function parseNumber(
   flag: string,
   value: string | undefined
 ): number | undefined {
   if (value === undefined) return undefined;
   const num = Number(value);
-  if (value.trim() === '' || Number.isNaN(num)) {
+  if (!DECIMAL.test(value.trim()) || !Number.isFinite(num)) {
     throw new UsageError(`--${flag} must be a number, got "${value}"`);
   }
   return num;
@@ -75,7 +77,7 @@ export async function parseJsonObject(
 ): Promise<Record<string, unknown> | undefined> {
   if (value === undefined) return undefined;
   const source = value.startsWith('@')
-    ? await Bun.file(value.slice(1)).text()
+    ? await readTextFile(`--${flag}`, value.slice(1))
     : value;
   let parsed: unknown;
   try {
@@ -87,6 +89,41 @@ export async function parseJsonObject(
     throw new UsageError(`--${flag} must be a JSON object`);
   }
   return parsed as Record<string, unknown>;
+}
+
+/** Reads a local file, turning a missing or unreadable file into a UsageError. */
+export async function readTextFile(
+  label: string,
+  path: string
+): Promise<string> {
+  try {
+    return await Bun.file(path).text();
+  } catch {
+    throw new UsageError(`${label}: cannot read file "${path}"`);
+  }
+}
+
+/** Parses a metadata object; the API only accepts string values. */
+export async function parseMetadata(
+  flag: string,
+  value: string | undefined
+): Promise<Record<string, string> | undefined> {
+  const metadata = await parseJsonObject(flag, value);
+  if (metadata === undefined) return undefined;
+  for (const [key, item] of Object.entries(metadata)) {
+    if (typeof item !== 'string') {
+      throw new UsageError(`--${flag} values must be strings (key "${key}")`);
+    }
+  }
+  return metadata as Record<string, string>;
+}
+
+/** Encodes an ID for a URL path, rejecting values that would change the path. */
+export function pathSegment(id: string): string {
+  if (id === '' || id === '.' || id === '..') {
+    throw new UsageError(`Invalid ID "${id}"`);
+  }
+  return encodeURIComponent(id);
 }
 
 export function isValidUrl(value: string): boolean {

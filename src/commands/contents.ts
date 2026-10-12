@@ -3,10 +3,10 @@ import { formatSearchResults } from '../formatters/markdown.js';
 import { printOutput } from '../utils/commands.js';
 import { betaHeaders, buildContents, compact } from '../utils/options.js';
 import {
-  UsageError,
   isValidUrl,
   parseEnum,
   requireArg,
+  UsageError,
 } from '../utils/validation.js';
 import {
   type CliArgs,

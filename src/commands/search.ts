@@ -10,11 +10,11 @@ import {
 } from '../utils/options.js';
 import { streamCompletion } from '../utils/stream.js';
 import {
-  UsageError,
   parseEnum,
   parseJsonObject,
   parseStringList,
   requireArg,
+  UsageError,
 } from '../utils/validation.js';
 import {
   type CliArgs,

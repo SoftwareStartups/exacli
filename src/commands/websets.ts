@@ -4,39 +4,44 @@
  * override keys from --body.
  */
 
-import type { ExaClient, HttpMethod, QueryValue } from '../client.js';
+import {
+  type ExaClient,
+  fetchExternal,
+  type HttpMethod,
+  type QueryValue,
+} from '../client.js';
 import { formatResource, formatResourceList } from '../formatters/markdown.js';
 import { printOutput } from '../utils/commands.js';
 import { compact, nonEmpty, paginationQuery } from '../utils/options.js';
 import {
-  UsageError,
   parseEnum,
   parseInteger,
   parseJsonObject,
-  parseNumber,
+  parseMetadata,
   parseStringList,
+  pathSegment,
+  readTextFile,
   requireArg,
+  UsageError,
 } from '../utils/validation.js';
 import {
+  BOOLEAN_STRINGS,
   type CliArgs,
   ENRICHMENT_FORMATS,
+  type Handler,
   type ListResponse,
   WEBSET_ENTITY_TYPES,
+  WEBSET_MONITOR_STATUSES,
   WEBSET_SEARCH_BEHAVIORS,
 } from './types.js';
 
-type Handler = (
-  client: ExaClient,
-  positionals: string[],
-  args: CliArgs
-) => Promise<void>;
 type Body = Record<string, unknown>;
 type Resource = Record<string, unknown>;
 
 const BASE = '/websets/v0';
 
 const path = (...segments: string[]) =>
-  [BASE, ...segments.map(encodeURIComponent)].join('/');
+  [BASE, ...segments.map(pathSegment)].join('/');
 
 const isPlainObject = (value: unknown): value is Body =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -72,7 +77,7 @@ function buildCriteria(args: CliArgs): Body[] | undefined {
 function buildSearchFields(args: CliArgs): Body {
   return {
     query: args.query,
-    count: parseNumber('count', args.count),
+    count: parseInteger('count', args.count),
     entity: buildEntity(args),
     criteria: buildCriteria(args),
   };
@@ -150,7 +155,7 @@ export const websets: Record<string, Handler> = {
         externalId: args['external-id'],
         search,
         enrichments: args.enrichment?.map((description) => ({ description })),
-        metadata: await parseJsonObject('metadata', args.metadata),
+        metadata: await parseMetadata('metadata', args.metadata),
       });
     }
   ),
@@ -181,7 +186,7 @@ export const websets: Record<string, Handler> = {
     async (args) =>
       withBody(args, {
         title: args.title,
-        metadata: await parseJsonObject('metadata', args.metadata),
+        metadata: await parseMetadata('metadata', args.metadata),
       })
   ),
   delete: resourceHandler(
@@ -208,7 +213,7 @@ export const websets: Record<string, Handler> = {
       const body = await withBody(args, {
         search: nonEmpty({
           query: args.query,
-          count: parseNumber('count', args.count),
+          count: parseInteger('count', args.count),
           entity: buildEntity(args),
         }),
       });
@@ -258,7 +263,7 @@ export const websetSearches: Record<string, Handler> = {
             WEBSET_SEARCH_BEHAVIORS
           ),
           recall: args.recall || undefined,
-          metadata: await parseJsonObject('metadata', args.metadata),
+          metadata: await parseMetadata('metadata', args.metadata),
         }),
         ['query', 'count'],
         'webset-search create <webset-id> --query <q> --count <n>'
@@ -288,7 +293,7 @@ async function enrichmentBody(args: CliArgs): Promise<Body> {
     description: args.description,
     format: parseEnum('format', args.format, ENRICHMENT_FORMATS),
     options: parseStringList(args.options)?.map((label) => ({ label })),
-    metadata: await parseJsonObject('metadata', args.metadata),
+    metadata: await parseMetadata('metadata', args.metadata),
   });
 }
 
@@ -352,7 +357,7 @@ async function websetMonitorFields(args: CliArgs): Promise<Body> {
       ? compact({ cron: args.cron, timezone: args.timezone })
       : undefined,
     behavior: config ? { type: 'search', config } : undefined,
-    metadata: await parseJsonObject('metadata', args.metadata),
+    metadata: await parseMetadata('metadata', args.metadata),
   };
 }
 
@@ -367,8 +372,15 @@ async function websetMonitorCreate(
     websetId,
     ...(await websetMonitorFields(args)),
   });
+  requireFields(body, ['cadence', 'behavior'], usage);
+  const config = (body.behavior as { config?: Body }).config;
+  if (config?.count === undefined) {
+    throw new UsageError(
+      `Missing --count (or behavior.config.count in --body). Usage: exacli ${usage}`
+    );
+  }
   const result = await client.request<Resource>('POST', path('monitors'), {
-    body: requireFields(body, ['cadence', 'behavior'], usage),
+    body,
   });
   printOutput(result, args, formatResource('Webset Monitor'));
 }
@@ -400,10 +412,7 @@ export const websetMonitors: Record<string, Handler> = {
     async (args) =>
       withBody(args, {
         ...(await websetMonitorFields(args)),
-        status: parseEnum('status', args.status, [
-          'enabled',
-          'disabled',
-        ] as const),
+        status: parseEnum('status', args.status, WEBSET_MONITOR_STATUSES),
       })
   ),
   delete: resourceHandler(
@@ -413,8 +422,7 @@ export const websetMonitors: Record<string, Handler> = {
     1,
     ([id = '']) => path('monitors', id)
   ),
-  runs: resourceHandler(
-    'GET',
+  runs: listHandler(
     'Webset Monitor Runs',
     'webset-monitor runs <monitor-id>',
     1,
@@ -431,8 +439,26 @@ export const websetMonitors: Record<string, Handler> = {
 
 // Imports
 
+/** Counts non-blank CSV records; newlines inside quoted fields do not count. */
+export function countCsvRecords(csv: string): number {
+  let records = 0;
+  let inQuotes = false;
+  let hasContent = false;
+  for (const char of csv) {
+    if (char === '"') inQuotes = !inQuotes;
+    if (char === '\n' && !inQuotes) {
+      if (hasContent) records++;
+      hasContent = false;
+    } else if (char.trim() !== '') {
+      hasContent = true;
+    }
+  }
+  return hasContent ? records + 1 : records;
+}
+
 /**
  * Creates a CSV import and uploads the file to the returned upload URL.
+ * The first CSV row is treated as a header and not counted.
  */
 async function importCreate(
   client: ExaClient,
@@ -440,14 +466,14 @@ async function importCreate(
   args: CliArgs
 ): Promise<void> {
   const usage = 'webset-import create <file.csv> --entity <type>';
-  const file = Bun.file(requireArg(positionals[0], usage));
-  const csv = await file.text();
-  const rows = csv.split('\n').filter((line) => line.trim() !== '');
+  const csvPath = requireArg(positionals[0], usage);
+  const file = Bun.file(csvPath);
+  const csv = await readTextFile('webset-import create', csvPath);
   const body = requireFields(
     await withBody(args, {
       format: 'csv',
       size: file.size,
-      count: Math.max(rows.length - 1, 0),
+      count: Math.max(countCsvRecords(csv) - 1, 0),
       title: args.title,
       entity: buildEntity(args),
       csv: nonEmpty({
@@ -456,7 +482,7 @@ async function importCreate(
           args['identifier-column']
         ),
       }),
-      metadata: await parseJsonObject('metadata', args.metadata),
+      metadata: await parseMetadata('metadata', args.metadata),
     }),
     ['entity'],
     usage
@@ -467,17 +493,19 @@ async function importCreate(
     path('imports'),
     { body }
   );
-  if (created.uploadUrl) {
-    const upload = await fetch(created.uploadUrl, {
-      method: 'PUT',
-      headers: { 'content-type': 'text/csv' },
-      body: csv,
-    });
-    if (!upload.ok) {
-      throw new Error(
-        `Import ${created.id} created but the CSV upload failed (HTTP ${upload.status})`
-      );
-    }
+  if (!created.uploadUrl) {
+    throw new Error(`Import ${created.id} created but no upload URL returned`);
+  }
+  // Upload the original bytes; decoding to text would alter non-UTF-8 files.
+  const upload = await fetchExternal(created.uploadUrl, {
+    method: 'PUT',
+    headers: { 'content-type': 'text/csv' },
+    body: file,
+  });
+  if (!upload.ok) {
+    throw new Error(
+      `Import ${created.id} created but the CSV upload failed (HTTP ${upload.status})`
+    );
   }
   printOutput(created, args, formatResource('Import'));
 }
@@ -501,7 +529,7 @@ export const websetImports: Record<string, Handler> = {
     async (args) =>
       withBody(args, {
         title: args.title,
-        metadata: await parseJsonObject('metadata', args.metadata),
+        metadata: await parseMetadata('metadata', args.metadata),
       })
   ),
   delete: resourceHandler(
@@ -519,7 +547,7 @@ async function webhookBody(args: CliArgs): Promise<Body> {
   return withBody(args, {
     url: args['webhook-url'],
     events: parseStringList(args.events),
-    metadata: await parseJsonObject('metadata', args.metadata),
+    metadata: await parseMetadata('metadata', args.metadata),
   });
 }
 
@@ -569,10 +597,7 @@ export const websetWebhooks: Record<string, Handler> = {
     ([id = '']) => path('webhooks', id, 'attempts'),
     (args) => ({
       eventType: args['event-type'],
-      successful: parseEnum('successful', args.successful, [
-        'true',
-        'false',
-      ] as const),
+      successful: parseEnum('successful', args.successful, BOOLEAN_STRINGS),
     })
   ),
 };

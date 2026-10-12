@@ -6,6 +6,8 @@
 tests/
 ├── helpers/
 │   ├── mock-client.ts        # mockClient() / requestCall() — mock request() and stream()
+│   ├── fetch-stub.ts         # withFetch(): swap global fetch for one test
+│   ├── temp-file.ts          # withTempFile(): unique temp file, deleted afterwards
 │   └── process-exit.ts       # stubProcessExit() — throwing process.exit stub
 ├── unit/
 │   └── auth/
@@ -28,6 +30,8 @@ task test              # All tests (e2e runs live calls when EXA_API_KEY is set,
 ## Helpers
 
 - `helpers/process-exit.ts` — `stubProcessExit()` replaces `process.exit` with a throwing stub and returns a `restore()` callback. Command handlers throw instead of exiting; use this only for `runCommand` tests.
+- `helpers/fetch-stub.ts`: `withFetch(handler, fn)` replaces global `fetch` while `fn` runs (batch result downloads, CSV uploads).
+- `helpers/temp-file.ts`: `withTempFile(ext, content, fn)` writes a uniquely named file in the OS temp dir and deletes it afterwards.
 - `helpers/mock-client.ts` — `mockClient(respond, events)` builds an `ExaClient` whose `request()` returns `respond(method, path, options)` and whose `stream()` yields `events`. `requestCall(m, i)` returns the arguments of the i-th request, so tests assert the exact method, path, and body sent to the API.
 
 ## Conventions

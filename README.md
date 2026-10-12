@@ -169,7 +169,7 @@ exacli agent events agent_run_123
 exacli agent delete agent_run_123
 ```
 
-`agent run` returns immediately with a run ID. Use `--wait` to poll until it finishes or `--stream` to follow its events.
+`agent run` returns immediately with a run ID. Use `--wait` to poll until it finishes or `--stream` to follow its events. With either flag, the command exits 1 when the run ends `failed` or `cancelled`.
 
 **Run options:** `--effort <minimal|low|medium|high|xhigh|auto|ultra>`, `--system-prompt`, `--output-schema`, `--input <json|@file>`, `--previous-run <id>`, `--data-sources <list>`, `--max-cost <usd>`, `--max-duration <seconds>`, `--metadata`, `--user-id`, `--wait`, `--poll-interval <ms>`, `--timeout <ms>`, `--stream`
 
@@ -191,7 +191,7 @@ exacli monitor batch pause --name chips --execute
 exacli monitor delete <monitor-id>
 ```
 
-`monitor create` prints the webhook signing secret once. Store it.
+`monitor create` prints the webhook signing secret once. Store it. Monitors accept the content options of `search`, except `--summary-schema` and `--snapshot-as-of`.
 
 ### `batch <subcommand>`
 
@@ -249,7 +249,22 @@ Markdown by default. With `--json`, every command prints one envelope:
 {"ok":false,"error":"Invalid API key. ...","code":"INVALID_API_KEY"}
 ```
 
-Streaming commands (`--stream --json`) print one envelope per line (NDJSON). Progress messages go to stderr.
+Streaming commands (`--stream --json`) print one envelope per line (NDJSON). Progress messages go to stderr. A stream that ends before it completes is an error.
+
+The exit code is 0 on success and 1 on any error, including usage errors and agent runs that end `failed` or `cancelled`. `--metadata` takes a JSON object with string values. Text from web pages is printed without terminal control characters.
+
+## Upgrading from v1
+
+| v1 | v2 |
+|----|----|
+| `research "<task>"` | `agent run "<task>"` |
+| `research-status <id>` | `agent get <id>` |
+| `research-list` | `agent list` |
+| `--poll` | `--wait` |
+| `--type keyword`, `neural`, `hybrid` | `--type auto`, `fast`, `instant`, `deep-lite`, `deep`, `deep-reasoning` |
+| `--livecrawl auto` | `--max-age-hours <n>` |
+| `--autoprompt`, `--start-crawl-date`, `--end-crawl-date` | Removed (no longer in the Exa API) |
+| `--json` printed the raw response | `--json` prints `{"ok":true,"data":...}`; read `.data` |
 
 ## Global Options
 

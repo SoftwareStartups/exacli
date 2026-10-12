@@ -34,7 +34,7 @@ task compile:all                     # Build binaries for all 6 platforms
 
 ```text
 src/
-├── index.ts              # Entry point: flag table (parseArgs, strict), command registry, dispatch
+├── index.ts              # Entry point: parseArgs (strict), command registry, dispatch
 ├── help.ts               # Top-level and per-command help text
 ├── client.ts             # Exa REST client: request() (JSON) and stream() (SSE), ExaApiError
 ├── auth/
@@ -42,7 +42,7 @@ src/
 ├── cli/
 │   └── commands/         # login.ts / logout.ts
 ├── commands/
-│   ├── types.ts          # CliArgs, API enums, beta tokens, response types
+│   ├── types.ts          # Flag lists, CliArgs, Handler, API enums, beta tokens, response types
 │   ├── search.ts         # POST /search
 │   ├── contents.ts       # POST /contents
 │   ├── similar.ts        # POST /findSimilar (deprecated by Exa)
@@ -59,7 +59,7 @@ src/
     ├── commands.ts       # Output envelope, runCommand error handling
     └── stream.ts         # Renders streamed /answer and /search output
 tests/
-├── helpers/              # mock-client.ts, process-exit.ts
+├── helpers/              # mock-client.ts, process-exit.ts, fetch-stub.ts, temp-file.ts
 ├── unit/auth/            # keychain.test.ts
 ├── client.test.ts
 ├── options.test.ts
@@ -73,5 +73,5 @@ tests/
 ## Updating for API changes
 
 1. Diff the endpoints and schemas in `exa-spec.yaml` against `commands/types.ts` enums and the body builders.
-2. Add flags to `STRING_FLAGS`/`BOOLEAN_FLAGS` in `index.ts`, `CliArgs`, `help.ts`, README, llms.txt, and `skills/exacli/`.
+2. Add flags to `STRING_FLAGS`, `BOOLEAN_FLAGS`, or `MULTIPLE_FLAGS` (repeatable) in `commands/types.ts` (`CliArgs` is derived from them), then `help.ts`, README, llms.txt, and `skills/exacli/`.
 3. Beta features need their `Exa-Beta` token (see `types.ts`).

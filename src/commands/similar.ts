@@ -7,7 +7,7 @@ import {
   buildResultFilters,
   compact,
 } from '../utils/options.js';
-import { UsageError, isValidUrl, requireArg } from '../utils/validation.js';
+import { isValidUrl, requireArg, UsageError } from '../utils/validation.js';
 import type { CliArgs, SearchResponse } from './types.js';
 
 /** /findSimilar is deprecated by Exa but still served. */

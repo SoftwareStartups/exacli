@@ -176,9 +176,13 @@ Run Options:
   --metadata <json|@file>         Metadata stored with the run
   --user-id <id>                  End-user identifier for usage attribution
   --wait                          Poll until the run finishes
-  --poll-interval <ms>            Poll interval with --wait (default 5000)
+  --poll-interval <ms>            Poll interval with --wait (default 5000,
+                                  min 1000)
   --timeout <ms>                  Give up waiting after this (default 1800000)
   --stream                        Stream run events until it finishes
+
+With --wait or --stream, the command exits 1 if the run ends failed or
+cancelled.
 
 ${PAGINATION}
 `,
@@ -216,6 +220,7 @@ Create/Update Options:
   --execute                       Apply a batch action (default is dry run)
 
 ${CONTENT_OPTIONS}
+Monitors do not support --summary-schema or --snapshot-as-of.
 
 ${PAGINATION}
 `,
@@ -319,7 +324,7 @@ Subcommands:
 Options:
   --cron <expr>                   5-field cron, at most once per day
   --timezone <iana>               Default Etc/UTC
-  --count <n>                     Max new items per run
+  --count <n>                     Max new items per run (required on create)
   --query, --entity, --entity-description, --criterion (repeatable)
   --behavior <override|append>
   --status <enabled|disabled>     update only
@@ -332,7 +337,8 @@ Usage: exacli webset-import <subcommand> [options]
 
 Subcommands:
   create <file.csv>               Create an import and upload the CSV
-                                  (--entity required)
+                                  (--entity required; the first row is a
+                                  header)
   list
   get <import-id>
   update <import-id>              Update --title / --metadata
