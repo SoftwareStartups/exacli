@@ -51,6 +51,24 @@ export const AGENT_EFFORTS = [
 export const MONITOR_STATUSES = ['active', 'paused', 'disabled'] as const;
 export const MONITOR_BATCH_ACTIONS = ['delete', 'pause', 'unpause'] as const;
 
+export const WEBSET_ENTITY_TYPES = [
+  'company',
+  'person',
+  'article',
+  'research_paper',
+  'custom',
+] as const;
+export const WEBSET_SEARCH_BEHAVIORS = ['override', 'append'] as const;
+export const ENRICHMENT_FORMATS = [
+  'text',
+  'date',
+  'number',
+  'options',
+  'email',
+  'phone',
+  'url',
+] as const;
+
 export const DYNAMIC_HIGHLIGHTS_BETA = 'dynamic-highlights-2026-08-28';
 export const BATCHES_BETA = 'batches-2026-06-06';
 
@@ -127,6 +145,33 @@ export interface CliArgs {
   'webhook-events'?: string;
   metadata?: string;
   execute?: boolean;
+  // websets
+  body?: string;
+  count?: string;
+  entity?: string;
+  'entity-description'?: string;
+  criterion?: string[];
+  enrichment?: string[];
+  title?: string;
+  'external-id'?: string;
+  recall?: boolean;
+  expand?: string;
+  'with-items'?: boolean;
+  'source-id'?: string;
+  behavior?: string;
+  description?: string;
+  format?: string;
+  options?: string;
+  cron?: string;
+  timezone?: string;
+  events?: string;
+  'event-type'?: string;
+  successful?: string;
+  types?: string;
+  'created-after'?: string;
+  'created-before'?: string;
+  'identifier-column'?: string;
+  webset?: string;
   // pagination
   limit?: string;
   cursor?: string;

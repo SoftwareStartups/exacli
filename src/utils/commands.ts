@@ -34,7 +34,11 @@ export function errorCode(error: unknown): string {
 
 export function errorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
-  if (error instanceof ExaApiError && error.status === 401) {
+  const invalidKey =
+    error instanceof ExaApiError &&
+    error.status === 401 &&
+    (error.tag === 'INVALID_API_KEY' || /api key/i.test(message));
+  if (invalidKey) {
     return `${message} Run "exacli login" or set EXA_API_KEY.`;
   }
   return message;

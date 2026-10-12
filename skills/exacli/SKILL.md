@@ -1,11 +1,11 @@
 ---
 name: exacli
-description: Exa AI search API via CLI. Activate when user wants to search the web, find information, extract content from websites, get AI answers with sources, run deep research or list-building with Exa Agent, or set up recurring search monitors. Examples: "search for AI startups", "extract content from this URL", "research this topic", "build a list of companies that...", "find similar pages", "alert me about new articles on X".
+description: Exa AI search API via CLI. Activate when user wants to search the web, find information, extract content from websites, get AI answers with sources, run deep research or list-building with Exa Agent, build verified entity lists with Websets, or set up recurring search monitors. Examples: "search for AI startups", "extract content from this URL", "research this topic", "build a list of companies that...", "find similar pages", "alert me about new articles on X".
 ---
 
 # Exacli
 
-Web search, page contents, cited answers, Exa Agent research runs, and scheduled search monitors.
+Web search, page contents, cited answers, Exa Agent research runs, scheduled search monitors, and Websets.
 
 ## Rules
 
@@ -28,6 +28,7 @@ Web search, page contents, cited answers, Exa Agent research runs, and scheduled
 | Quick cited answer | `exacli answer "question"` |
 | Multi-step research, list building, enrichment | `exacli agent run "task"` then `exacli agent get <id>` |
 | Recurring search with webhook delivery | `exacli monitor create "query" --period 1d --webhook-url <url>` |
+| Large verified entity list with per-item criteria and enrichments | `exacli webset create --query "..." --count 50 --entity company` (needs Websets plan) |
 | Related pages to a URL | `exacli similar "url"` (deprecated by Exa; prefer search) |
 
 Query tips: describe the ideal page, not keywords. "blog post comparing React and Vue performance" beats "React vs Vue". Use `--objective` to say what the search is for.

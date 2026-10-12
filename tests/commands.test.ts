@@ -591,6 +591,24 @@ describe('runCommand', () => {
     });
   });
 
+  test('only suggests login for invalid API keys', async () => {
+    const restore = stubProcessExit();
+    try {
+      await expect(
+        runCommand({ json: true }, async () => {
+          throw new ExaApiError('Upgrade to a Pro plan.', 401);
+        })
+      ).rejects.toThrow('process.exit called');
+    } finally {
+      restore();
+    }
+    expect(printedJson()).toEqual({
+      ok: false,
+      error: 'Upgrade to a Pro plan.',
+      code: 'HTTP_401',
+    });
+  });
+
   test('prints usage errors to stderr in markdown mode', async () => {
     const restore = stubProcessExit();
     try {

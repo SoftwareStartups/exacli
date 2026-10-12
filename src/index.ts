@@ -13,6 +13,7 @@ import { contents } from './commands/contents.js';
 import * as monitor from './commands/monitor.js';
 import { search } from './commands/search.js';
 import { similar } from './commands/similar.js';
+import * as websets from './commands/websets.js';
 import type { CliArgs } from './commands/types.js';
 import { COMMAND_HELP, MAIN_HELP } from './help.js';
 import { runCommand } from './utils/commands.js';
@@ -57,6 +58,14 @@ const COMMANDS: Record<string, Handler | Record<string, Handler>> = {
     delete: batch.batchDelete,
     results: batch.batchResults,
   },
+  webset: websets.websets,
+  'webset-search': websets.websetSearches,
+  'webset-enrichment': websets.websetEnrichments,
+  'webset-monitor': websets.websetMonitors,
+  'webset-import': websets.websetImports,
+  'webset-webhook': websets.websetWebhooks,
+  'webset-event': websets.websetEvents,
+  team: websets.team,
 };
 
 const RETIRED_COMMANDS = new Set([
@@ -81,7 +90,11 @@ const BOOLEAN_FLAGS = [
   'wait',
   'remove-schedule',
   'execute',
+  'recall',
+  'with-items',
 ] as const;
+
+const MULTIPLE_FLAGS = ['criterion', 'enrichment'] as const;
 
 const STRING_FLAGS = [
   'api-key',
@@ -141,16 +154,42 @@ const STRING_FLAGS = [
   'metadata',
   'limit',
   'cursor',
+  'body',
+  'count',
+  'entity',
+  'entity-description',
+  'title',
+  'external-id',
+  'expand',
+  'source-id',
+  'behavior',
+  'description',
+  'format',
+  'options',
+  'cron',
+  'timezone',
+  'events',
+  'event-type',
+  'successful',
+  'types',
+  'created-after',
+  'created-before',
+  'identifier-column',
+  'webset',
 ] as const;
 
 interface OptionSpec {
   type: 'boolean' | 'string';
   short?: string;
+  multiple?: boolean;
 }
 
 const OPTIONS: Record<string, OptionSpec> = {
   ...Object.fromEntries(BOOLEAN_FLAGS.map((f) => [f, { type: 'boolean' }])),
   ...Object.fromEntries(STRING_FLAGS.map((f) => [f, { type: 'string' }])),
+  ...Object.fromEntries(
+    MULTIPLE_FLAGS.map((f) => [f, { type: 'string', multiple: true }])
+  ),
   help: { type: 'boolean', short: 'h' },
 };
 

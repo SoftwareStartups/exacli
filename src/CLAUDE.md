@@ -25,11 +25,12 @@ Handlers share the signature `(client, positionals, args: CliArgs) => Promise<vo
 - **agent.ts** — Agent runs, including `--wait` polling and `--stream` events. Replaces the retired Research API
 - **monitor.ts** — Search monitors and batch actions (dry run unless `--execute`)
 - **batch.ts** — Batch API; every call sends `Exa-Beta: batches-2026-06-06`
+- **websets.ts** — Websets API (`/websets/v0`). Handlers are built with `resourceHandler`/`listHandler` factories; bodies merge `--body <json|@file>` with flag-derived fields (flags win). `webset-import create` also uploads the CSV to the returned `uploadUrl`
 - **types.ts** — `CliArgs`, spec enums, beta tokens, and the response shapes the formatters read
 
 ### formatters/
 
-**markdown.ts** — One formatter per resource. Only used without `--json`.
+**markdown.ts** — One formatter per resource; Websets resources use the generic `formatResource`/`formatResourceList`. Only used without `--json`.
 
 ### utils/
 

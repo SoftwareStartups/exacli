@@ -36,6 +36,9 @@ const PAGINATION = `Pagination:
   --limit <n>                     Results per page
   --cursor <token>                Cursor from a previous page`;
 
+const WEBSET_COMMON = `Websets options accept --body <json|@file> with any field from the API spec
+(https://exa.ai/docs/websets/api); flags override keys in --body.`;
+
 export const MAIN_HELP = `
 Exacli - Exa AI search, contents, answers, agents, and monitors
 
@@ -52,6 +55,17 @@ Commands:
                               list, get, update, delete, trigger, runs, run, batch
   batch <subcommand>          Async request batches (beta): create, list, get,
                               cancel, delete, results
+  webset <subcommand>         Websets: create, list, get, update, delete,
+                              cancel, preview, items, item, item-delete
+  webset-search               Searches in a webset: create, get, cancel
+  webset-enrichment           Enrichments: create, get, update, delete, cancel
+  webset-monitor              Scheduled webset searches: create, list, get,
+                              update, delete, runs, run
+  webset-import               CSV imports: create, list, get, update, delete
+  webset-webhook              Websets webhooks: create, list, get, update,
+                              delete, attempts
+  webset-event                Websets events: list, get
+  team                        Team info and concurrency limits (Websets API)
   login                       Store API key in the OS keychain
   logout                      Remove stored API key
 
@@ -224,6 +238,147 @@ Options:
   --status completed              Only completed batches (list)
 
 ${PAGINATION}
+`,
+  webset: `
+Usage: exacli webset <subcommand> [options]
+
+Subcommands:
+  create                          Create a webset (--query starts a search)
+  list                            List websets (--query filters by text)
+  get <webset-id>                 Get a webset (--expand items)
+  update <webset-id>              Update --title / --metadata
+  delete <webset-id>              Delete a webset
+  cancel <webset-id>              Cancel all running operations
+  preview                         Preview how --query will be decomposed
+                                  (--with-items also returns sample items)
+  items <webset-id>               List items (--source-id filters by source)
+  item <webset-id> <item-id>      Get an item with evaluations and enrichments
+  item-delete <webset-id> <item-id>
+
+Options:
+  --query <text>                  Search query
+  --count <n>                     Items to find
+  --entity <type>                 company, person, article, research_paper, custom
+  --entity-description <text>     Required with --entity custom
+  --criterion <text>              Criterion items must meet (repeatable)
+  --enrichment <text>             Enrichment to add on create (repeatable)
+  --recall                        Estimate how many matches exist
+  --title <text>                  Webset title
+  --external-id <id>              Your own identifier
+  --metadata <json|@file>         Key-value metadata
+  --body <json|@file>             Raw request body (scope, exclude, import, ...)
+
+${PAGINATION}
+
+${WEBSET_COMMON}
+`,
+  'webset-search': `
+Usage: exacli webset-search <subcommand> [options]
+
+Subcommands:
+  create <webset-id>              Run a new search (--query and --count required)
+  get <webset-id> <search-id>     Get search progress
+  cancel <webset-id> <search-id>  Cancel a running search
+
+Options:
+  --query, --count, --entity, --entity-description, --criterion (repeatable)
+  --behavior <override|append>    Replace or add to existing items
+  --recall                        Estimate how many matches exist
+  --metadata <json|@file>, --body <json|@file>
+
+${WEBSET_COMMON}
+`,
+  'webset-enrichment': `
+Usage: exacli webset-enrichment <subcommand> [options]
+
+Subcommands:
+  create <webset-id>                    Add an enrichment (--description required)
+  get <webset-id> <enrichment-id>
+  update <webset-id> <enrichment-id>
+  delete <webset-id> <enrichment-id>
+  cancel <webset-id> <enrichment-id>
+
+Options:
+  --description <text>            What to extract for each item
+  --format <format>               text, date, number, options, email, phone, url
+  --options <list>                Labels when --format options
+  --metadata <json|@file>, --body <json|@file>
+`,
+  'webset-monitor': `
+Usage: exacli webset-monitor <subcommand> [options]
+
+Subcommands:
+  create <webset-id>              Schedule searches that add items to a webset
+  list                            List monitors (--webset <id> filters)
+  get <monitor-id>
+  update <monitor-id>             Change schedule, search, or --status
+  delete <monitor-id>
+  runs <monitor-id>               List runs
+  run <monitor-id> <run-id>       Get a run
+
+Options:
+  --cron <expr>                   5-field cron, at most once per day
+  --timezone <iana>               Default Etc/UTC
+  --count <n>                     Max new items per run
+  --query, --entity, --entity-description, --criterion (repeatable)
+  --behavior <override|append>
+  --status <enabled|disabled>     update only
+  --metadata <json|@file>, --body <json|@file>
+
+${PAGINATION}
+`,
+  'webset-import': `
+Usage: exacli webset-import <subcommand> [options]
+
+Subcommands:
+  create <file.csv>               Create an import and upload the CSV
+                                  (--entity required)
+  list
+  get <import-id>
+  update <import-id>              Update --title / --metadata
+  delete <import-id>
+
+Options:
+  --entity <type>, --entity-description <text>
+  --identifier-column <n>         0-based column holding the key (e.g. URL)
+  --title <text>, --metadata <json|@file>, --body <json|@file>
+
+${PAGINATION}
+`,
+  'webset-webhook': `
+Usage: exacli webset-webhook <subcommand> [options]
+
+Subcommands:
+  create                          --webhook-url and --events required
+  list
+  get <webhook-id>
+  update <webhook-id>
+  delete <webhook-id>
+  attempts <webhook-id>           Delivery attempts (--event-type,
+                                  --successful true|false)
+
+Options:
+  --webhook-url <url>             Destination URL
+  --events <list>                 e.g. webset.created,webset.item.created,
+                                  webset.search.completed
+  --metadata <json|@file>, --body <json|@file>
+
+${PAGINATION}
+`,
+  'webset-event': `
+Usage: exacli webset-event <subcommand> [options]
+
+Subcommands:
+  list                            --types <list>, --created-after <iso>,
+                                  --created-before <iso>
+  get <event-id>
+
+${PAGINATION}
+`,
+  team: `
+Usage: exacli team
+
+Shows the team, its concurrency usage, and limits (Websets API).
 `,
   login: `
 Usage: exacli login [--api-key <key>] [--skip-validation]

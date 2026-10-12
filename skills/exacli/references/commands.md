@@ -114,6 +114,27 @@ exacli monitor delete <id>
 
 The webhook secret is returned only by `create`. Webhook URLs must be public HTTPS. The minimum period is `1h`.
 
+## websets (requires a Websets-enabled plan)
+
+Every Websets command accepts `--body <json|@file>` for any spec field; flags override it.
+
+```bash
+exacli webset create --query "<q>" --count 25 --entity company|person|article|research_paper \
+  --criterion "<must hold>" --enrichment "<field to extract>" --json | jq '.data.id'
+exacli webset get <id> --json | jq '.data | {status, searches: [.searches[]?.status]}'
+exacli webset items <id> --limit 50 --json | jq '[.data.data[] | {id, url: .properties.url}]'
+exacli webset preview --query "<q>" --with-items --json | jq '.data'
+exacli webset-search create <id> --query "<q>" --count 10 --behavior append
+exacli webset-enrichment create <id> --description "<what>" --format text|date|number|options|email|phone|url [--options a,b]
+exacli webset-monitor create <id> --cron "0 9 * * 1" --count 5 [--behavior append]
+exacli webset-import create file.csv --entity company [--identifier-column 0]
+exacli webset-webhook create --webhook-url <url> --events webset.item.created,webset.idle
+exacli webset-event list --types webset.idle --json | jq '[.data.data[] | {id, type}]'
+exacli team --json | jq '.data'
+```
+
+Websets run asynchronously: poll `webset get <id>` until `status` is `idle`, then read `webset items`.
+
 ## batch (beta, team must be enabled)
 
 ```bash

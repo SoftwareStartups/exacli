@@ -15,6 +15,7 @@ tests/
 ├── validation.test.ts        # Input validation
 ├── formatters.test.ts        # Markdown/JSON output
 ├── commands.test.ts          # CLI command behavior
+├── websets.test.ts           # Websets command requests
 └── e2e.test.ts               # Real Exa API (requires EXA_API_KEY)
 ```
 

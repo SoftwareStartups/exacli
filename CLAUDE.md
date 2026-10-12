@@ -1,6 +1,6 @@
 # Exacli
 
-Bun-native TypeScript CLI for the Exa AI API: search, contents, answers, Exa Agent runs, search monitors, and batches. Zero runtime dependencies; calls the REST API directly, following https://exa.ai/docs/exa-spec.yaml (source of truth for request/response shapes). Websets (`/v0/*`) are out of scope.
+Bun-native TypeScript CLI for the Exa AI API: search, contents, answers, Exa Agent runs, search monitors, batches, and Websets. Zero runtime dependencies; calls the REST API directly, following https://exa.ai/docs/exa-spec.yaml (source of truth for request/response shapes). Websets endpoints live under `https://api.exa.ai/websets/v0`.
 
 ## Environment Variables
 
@@ -49,7 +49,8 @@ src/
 │   ├── answer.ts         # POST /answer
 │   ├── agent.ts          # /agent/runs (run, get, list, cancel, stop, delete, events)
 │   ├── monitor.ts        # /monitors (create, list, get, update, delete, trigger, runs, run, batch)
-│   └── batch.ts          # /batches (beta header)
+│   ├── batch.ts          # /batches (beta header)
+│   └── websets.ts        # /websets/v0: websets, searches, enrichments, items, monitors, imports, webhooks, events, team
 ├── formatters/
 │   └── markdown.ts       # Markdown output per resource
 └── utils/
@@ -65,6 +66,7 @@ tests/
 ├── validation.test.ts
 ├── formatters.test.ts
 ├── commands.test.ts
+├── websets.test.ts
 └── e2e.test.ts           # Live API (skipped without EXA_API_KEY)
 ```
 

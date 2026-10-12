@@ -1,6 +1,6 @@
 # Exacli
 
-A Bun-native TypeScript CLI for the [Exa AI](https://exa.ai) API. Search the web, extract page contents, get cited answers, run Exa Agent research jobs, schedule search monitors, and submit request batches from your terminal.
+A Bun-native TypeScript CLI for the [Exa AI](https://exa.ai) API. Search the web, extract page contents, get cited answers, run Exa Agent research jobs, schedule search monitors, submit request batches, and build Websets from your terminal.
 
 > **Attribution:** Based on [exa-cli](https://github.com/sandiiarov/exa-cli) by Alex Sandiiarov. Now maintained by [SoftwareStartups](https://github.com/SoftwareStartups).
 
@@ -14,8 +14,7 @@ A Bun-native TypeScript CLI for the [Exa AI](https://exa.ai) API. Search the web
 - **Agent** runs for deep research, list building, and enrichment, with effort levels, budgets, Exa Connect data sources, and structured output
 - **Monitors** that run a search on a schedule and post new results to a webhook
 - **Batches** of `/search` and `/agent/runs` requests processed asynchronously (beta)
-
-Websets (`/v0/*`) are not covered.
+- **Websets** with searches, enrichments, items, scheduled monitors, CSV imports, webhooks, and events (requires a Websets-enabled plan)
 
 ## Installation
 
@@ -211,6 +210,36 @@ exacli batch cancel <batch-id>
 exacli batch delete <batch-id>
 ```
 
+### `webset` and related commands
+
+[Websets](https://exa.ai/docs/websets/api) build verified lists of companies, people, articles, or papers. Every Websets command accepts `--body <json|@file>` for any spec field (scope, exclude, import, ...); flags override keys in `--body`.
+
+```bash
+exacli webset create --query "AI startups in Berlin with a female founder" --count 25 --entity company \
+  --criterion "founded after 2020" --criterion "raised a seed round" --enrichment "CEO name"
+exacli webset preview --query "fintechs in Lisbon" --with-items
+exacli webset get <webset-id>
+exacli webset items <webset-id> --limit 50
+exacli webset-search create <webset-id> --query "more like these" --count 10 --behavior append
+exacli webset-enrichment create <webset-id> --description "Funding stage" --format options --options seed,series-a,series-b
+exacli webset-monitor create <webset-id> --cron "0 9 * * 1" --count 5 --behavior append
+exacli webset-import create companies.csv --entity company --identifier-column 0
+exacli webset-webhook create --webhook-url https://hooks.example.com/exa --events webset.item.created
+exacli webset-event list --types webset.idle
+exacli team
+```
+
+| Command | Subcommands |
+|---------|-------------|
+| `webset` | create, list, get, update, delete, cancel, preview, items, item, item-delete |
+| `webset-search` | create, get, cancel |
+| `webset-enrichment` | create, get, update, delete, cancel |
+| `webset-monitor` | create, list, get, update, delete, runs, run |
+| `webset-import` | create (uploads the CSV), list, get, update, delete |
+| `webset-webhook` | create, list, get, update, delete, attempts |
+| `webset-event` | list, get |
+| `team` | Team info and concurrency limits |
+
 ## Output
 
 Markdown by default. With `--json`, every command prints one envelope:
@@ -257,7 +286,7 @@ exacli/
 │   ├── client.ts             # Exa REST client (fetch + SSE)
 │   ├── auth/keychain.ts      # OS keychain credential storage
 │   ├── cli/commands/         # login / logout
-│   ├── commands/             # search, contents, similar, answer, agent, monitor, batch
+│   ├── commands/             # search, contents, similar, answer, agent, monitor, batch, websets
 │   ├── formatters/markdown.ts
 │   └── utils/                # options, validation, output, streaming
 ├── tests/

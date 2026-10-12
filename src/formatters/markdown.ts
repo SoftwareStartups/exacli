@@ -329,3 +329,62 @@ export function formatBatchList(list: ListResponse<Batch>): string {
 export function formatSuccess(message: string): string {
   return `[OK] ${message}`;
 }
+
+const SUMMARY_FIELDS = [
+  'id',
+  'object',
+  'title',
+  'name',
+  'status',
+  'type',
+  'description',
+  'format',
+  'url',
+  'websetId',
+  'createdAt',
+  'updatedAt',
+];
+
+function scalar(value: unknown): string | undefined {
+  return ['string', 'number', 'boolean'].includes(typeof value)
+    ? String(value)
+    : undefined;
+}
+
+/** Generic formatter for Websets resources: key fields plus the full JSON. */
+export function formatResource(
+  title: string
+): (resource: Record<string, unknown>) => string {
+  return (resource) => {
+    const shown = SUMMARY_FIELDS.map((field): [string, unknown] => [
+      field,
+      scalar(resource[field]),
+    ]);
+    const rest = Object.fromEntries(
+      Object.entries(resource).filter(
+        ([key, value]) =>
+          !(SUMMARY_FIELDS.includes(key) && scalar(value) !== undefined) &&
+          value !== null
+      )
+    );
+    let output = `# ${title}\n\n${bullets(shown)}`;
+    if (Object.keys(rest).length > 0) output += `\n${jsonBlock(rest)}`;
+    return output;
+  };
+}
+
+export function formatResourceList(
+  title: string
+): (list: ListResponse<Record<string, unknown>>) => string {
+  return (list) => {
+    let output = `# ${title}\n\n`;
+    if (list.data.length === 0) return `${output}None found.\n`;
+    for (const item of list.data) {
+      const label =
+        scalar(item.title) ?? scalar(item.name) ?? scalar(item.type);
+      const status = scalar(item.status);
+      output += `- ${scalar(item.id) ?? '?'}${status ? `: ${status}` : ''}${label ? ` ${label}` : ''}\n`;
+    }
+    return `${output}\n${moreHint(list)}`;
+  };
+}

@@ -7,7 +7,7 @@ import pkg from '../package.json' with { type: 'json' };
 export const API_BASE_URL = 'https://api.exa.ai';
 
 export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
-export type QueryValue = string | number | boolean | undefined;
+export type QueryValue = string | number | boolean | string[] | undefined;
 
 export interface RequestOptions {
   body?: unknown;
@@ -54,7 +54,9 @@ export function createClient(
   ): Promise<Response> => {
     const url = new URL(path, baseUrl);
     for (const [key, value] of Object.entries(options.query ?? {})) {
-      if (value !== undefined) url.searchParams.append(key, String(value));
+      for (const item of [value].flat()) {
+        if (item !== undefined) url.searchParams.append(key, String(item));
+      }
     }
     const response = await fetch(url, {
       method,
@@ -101,10 +103,11 @@ async function toApiError(response: Response): Promise<ExaApiError> {
       tag?: string;
       requestId?: string;
     };
+    // Search/Agent APIs send {error, tag}; Websets sends {error, message}.
     const message =
-      typeof body.error === 'string'
-        ? body.error
-        : (body.error?.message ?? body.message ?? text);
+      body.message ??
+      (typeof body.error === 'string' ? body.error : body.error?.message) ??
+      text;
     const tag =
       body.tag ??
       (typeof body.error === 'object' ? body.error.code : undefined);

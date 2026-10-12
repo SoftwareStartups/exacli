@@ -53,6 +53,29 @@ describe('createClient().request', () => {
     expect(headers['user-agent']).toStartWith('exacli/');
   });
 
+  test('repeats array query parameters', async () => {
+    const fetchMock = mockFetch(Response.json({ data: [] }));
+    await createClient('k', 'https://api.test').request('GET', '/events', {
+      query: { types: ['a', 'b'] },
+    });
+    expect(fetchMock.mock.calls[0]?.[0].toString()).toBe(
+      'https://api.test/events?types=a&types=b'
+    );
+  });
+
+  test('prefers the message field of Websets errors', async () => {
+    mockFetch(
+      Response.json(
+        { statusCode: 401, error: 'Unauthorized', message: 'Upgrade to Pro.' },
+        { status: 401 }
+      )
+    );
+    const error = await createClient('k')
+      .request('GET', '/websets/v0/websets')
+      .catch((e) => e);
+    expect(error).toMatchObject({ message: 'Upgrade to Pro.', status: 401 });
+  });
+
   test('returns an empty object for empty success bodies', async () => {
     mockFetch(new Response('', { status: 200 }));
     const client = createClient('k');

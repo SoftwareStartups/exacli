@@ -1,6 +1,6 @@
 # Exacli
 
-> A CLI for the Exa AI API. Search the web, extract page contents, get cited answers, run Exa Agent research jobs, schedule search monitors, and submit request batches from your terminal.
+> A CLI for the Exa AI API. Search the web, extract page contents, get cited answers, run Exa Agent research jobs, schedule search monitors, submit request batches, and build Websets from your terminal.
 
 ## Overview
 
@@ -32,6 +32,7 @@ Get a key at https://dashboard.exa.ai/api-keys
 - `exacli agent run|get|list|cancel|stop|delete|events`: Exa Agent runs with `--effort`, `--output-schema`, `--input`, `--data-sources`, `--max-cost`, `--max-duration`, `--wait`, `--stream`.
 - `exacli monitor create|list|get|update|delete|trigger|runs|run|batch`: scheduled searches that post new results to a webhook.
 - `exacli batch create|list|get|cancel|delete|results`: async batches of `/search` and `/agent/runs` requests (beta).
+- `exacli webset create|list|get|update|delete|cancel|preview|items|item|item-delete`: Websets (verified entity lists). Related: `webset-search`, `webset-enrichment`, `webset-monitor`, `webset-import`, `webset-webhook`, `webset-event`, `team`. All accept `--body <json|@file>` for any spec field.
 - `exacli login` / `exacli logout`: manage the stored API key.
 
 ## Examples
@@ -44,6 +45,7 @@ exacli answer "Explain recursion" --system-prompt "Explain like I'm 5"
 exacli agent run "List 20 robotics startups in Europe" --effort medium
 exacli agent get agent_run_123 --json | jq '.data.output'
 exacli monitor create "AI chip funding" --period 1d --webhook-url https://hooks.example.com/exa
+exacli webset create --query "Series A fintechs in Lisbon" --count 20 --entity company --enrichment "CEO name"
 ```
 
 ## Documentation
