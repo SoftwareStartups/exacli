@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
-import { createClient, type ExaClient } from '../src/client.js';
+import { type ExaClient, createClient } from '../src/client.js';
 import * as agent from '../src/commands/agent.js';
 import { answer } from '../src/commands/answer.js';
 import { contents } from '../src/commands/contents.js';

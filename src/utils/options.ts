@@ -11,13 +11,13 @@ import {
   TEXT_VERBOSITY,
 } from '../commands/types.js';
 import {
+  UsageError,
   parseEnum,
   parseEnumList,
   parseInteger,
   parseJsonObject,
   parseNumber,
   parseStringList,
-  UsageError,
 } from './validation.js';
 
 type Body = Record<string, unknown>;
