@@ -1,101 +1,34 @@
 import type { ExaClient } from '../client.js';
-import * as format from '../formatters/markdown.js';
-import type { AnswerCommandArgs, Citation } from './types.js';
-import { runCommand, dedupCitations } from '../utils/commands.js';
+import { formatAnswerResponse } from '../formatters/markdown.js';
+import { printOutput } from '../utils/commands.js';
+import { buildUserLocation, compact } from '../utils/options.js';
+import { streamCompletion } from '../utils/stream.js';
+import { parseEnum, parseJsonObject, requireArg } from '../utils/validation.js';
+import { ANSWER_MODELS, type AnswerResponse, type CliArgs } from './types.js';
 
 export async function answer(
   client: ExaClient,
-  query: string,
-  args: AnswerCommandArgs
-) {
-  await runCommand(async () => {
-    const options = buildAnswerOptions(args);
-
-    if (args.stream === true) {
-      await streamAnswer(client, query, options, args.json === true);
-    } else {
-      const response = await client.answer(query, options);
-      console.log(
-        format.formatAnswerResponse(response, { json: args.json === true })
-      );
-    }
+  positionals: string[],
+  args: CliArgs
+): Promise<void> {
+  const query = requireArg(positionals.join(' '), 'answer <query>');
+  const body = compact({
+    query,
+    model: parseEnum('model', args.model, ANSWER_MODELS),
+    text: args.text || undefined,
+    systemPrompt: args['system-prompt'],
+    outputSchema: await parseJsonObject('output-schema', args['output-schema']),
+    userLocation: buildUserLocation(args),
+    userIdentifier: args['user-id'],
   });
-}
 
-async function streamAnswer(
-  client: ExaClient,
-  query: string,
-  options: Record<string, unknown>,
-  useJson: boolean
-) {
-  if (useJson) {
-    const jsonResponse = {
-      response: '',
-      citations: [] as Citation[],
-    };
-
-    for await (const chunk of client.streamAnswer(query, options)) {
-      if (chunk.content) {
-        jsonResponse.response += chunk.content;
-        process.stdout.write(chunk.content);
-      }
-      dedupCitations(jsonResponse.citations, chunk.citations);
-    }
-
-    console.log('\n');
-    if (jsonResponse.citations.length > 0) {
-      console.log(
-        JSON.stringify({ citations: jsonResponse.citations }, null, 2)
-      );
-    }
-  } else {
-    console.log('# Answer (streaming)\n');
-    console.log('## Response\n');
-
-    const citations: Citation[] = [];
-
-    for await (const chunk of client.streamAnswer(query, options)) {
-      if (chunk.content) {
-        process.stdout.write(chunk.content);
-      }
-      dedupCitations(citations, chunk.citations);
-    }
-
-    console.log('\n');
-
-    if (citations.length > 0) {
-      console.log('## Citations\n');
-      for (let i = 0; i < citations.length; i++) {
-        const citation = citations[i];
-        if (citation) {
-          console.log(
-            `${i + 1}. [${citation.title || 'Untitled'}](${citation.url})`
-          );
-        }
-      }
-      console.log('');
-    }
-  }
-}
-
-function buildAnswerOptions(args: AnswerCommandArgs) {
-  const options: Record<string, unknown> = {};
-
-  if (args.text === true) {
-    options.text = true;
+  if (args.stream) {
+    await streamCompletion(client, '/answer', body, undefined, args);
+    return;
   }
 
-  if (args.model) {
-    options.model = args.model;
-  }
-
-  if (args['system-prompt']) {
-    options.systemPrompt = args['system-prompt'];
-  }
-
-  if (args['user-location']) {
-    options.userLocation = args['user-location'];
-  }
-
-  return options;
+  const response = await client.request<AnswerResponse>('POST', '/answer', {
+    body,
+  });
+  printOutput(response, args, formatAnswerResponse);
 }

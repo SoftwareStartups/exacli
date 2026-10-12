@@ -1,123 +1,108 @@
-import { describe, test, beforeAll } from 'bun:test';
-import { createClient } from '../src/client.js';
-import * as search from '../src/commands/search.js';
-import * as contents from '../src/commands/contents.js';
-import * as similar from '../src/commands/similar.js';
-import * as answer from '../src/commands/answer.js';
-import * as research from '../src/commands/research.js';
-import { stubProcessExit } from './helpers/process-exit.js';
+import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
+import { type ExaClient, createClient } from '../src/client.js';
+import * as agent from '../src/commands/agent.js';
+import { answer } from '../src/commands/answer.js';
+import { contents } from '../src/commands/contents.js';
+import * as monitor from '../src/commands/monitor.js';
+import { search } from '../src/commands/search.js';
+import { similar } from '../src/commands/similar.js';
 
+// Real API calls. Kept to cheap requests; skipped without EXA_API_KEY.
 const apiKey = process.env.EXA_API_KEY;
-let client: ReturnType<typeof createClient>;
+const client: ExaClient | undefined = apiKey ? createClient(apiKey) : undefined;
+const TIMEOUT = 60_000;
 
-async function withRealApi(fn: () => Promise<void>): Promise<void> {
-  const restore = stubProcessExit();
-  try {
-    await fn();
-  } finally {
-    restore();
-  }
+let logSpy: ReturnType<typeof spyOn<Console, 'log'>>;
+
+beforeEach(() => {
+  logSpy = spyOn(console, 'log').mockImplementation(() => {});
+});
+
+afterEach(() => {
+  logSpy.mockRestore();
+});
+
+/** Parses the --json envelope printed by the last command. */
+function envelope(): { ok: boolean; data: Record<string, unknown> } {
+  return JSON.parse(String(logSpy.mock.calls.at(-1)?.[0]));
 }
 
-describe('E2E Tests - Real API', () => {
-  beforeAll(() => {
-    if (!apiKey) {
-      console.warn(
-        'Skipping E2E tests: EXA_API_KEY environment variable not set'
-      );
-      process.exit(0);
-    }
-    client = createClient(apiKey);
-  });
+describe.skipIf(!client)('E2E - real Exa API', () => {
+  const exa = client as ExaClient;
 
-  describe('search command', () => {
-    test('performs basic web search', async () => {
-      await withRealApi(() =>
-        search.search(client, 'artificial intelligence', {})
-      );
-    }, 30000);
+  test(
+    'search returns highlights',
+    async () => {
+      await search(exa, ['Bun JavaScript runtime'], {
+        'num-results': '2',
+        highlights: true,
+        json: true,
+      });
+      const { ok, data } = envelope();
+      expect(ok).toBe(true);
+      const results = data.results as Array<{ highlights?: string[] }>;
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0]?.highlights?.length).toBeGreaterThan(0);
+    },
+    TIMEOUT
+  );
 
-    test('performs search with content options', async () => {
-      await withRealApi(() =>
-        search.search(client, 'machine learning', {
-          text: true,
-          'num-results': '3',
-        })
-      );
-    }, 30000);
+  test(
+    'search with an output schema returns synthesized output',
+    async () => {
+      await search(exa, ['Who founded Exa AI?'], {
+        'num-results': '3',
+        'output-schema': '{"type":"text"}',
+        json: true,
+      });
+      expect(envelope().data.output).toBeDefined();
+    },
+    TIMEOUT
+  );
 
-    test('performs search with domain filtering', async () => {
-      await withRealApi(() =>
-        search.search(client, 'AI research', {
-          'include-domains': 'arxiv.org',
-          'num-results': '2',
-        })
-      );
-    }, 30000);
-  });
+  test(
+    'contents extracts capped text',
+    async () => {
+      await contents(exa, ['https://example.com'], {
+        text: true,
+        'max-characters': '100',
+        json: true,
+      });
+      const results = envelope().data.results as Array<{ text?: string }>;
+      expect(results[0]?.text?.length).toBeLessThanOrEqual(100);
+    },
+    TIMEOUT
+  );
 
-  describe('contents command', () => {
-    test('extracts content from valid URL', async () => {
-      await withRealApi(() =>
-        contents.contents(client, ['https://example.com'], {})
-      );
-    }, 30000);
+  test(
+    'similar finds related pages',
+    async () => {
+      await similar(exa, ['https://bun.com'], {
+        'num-results': '2',
+        json: true,
+      });
+      expect(envelope().ok).toBe(true);
+    },
+    TIMEOUT
+  );
 
-    test('extracts content with text option', async () => {
-      await withRealApi(() =>
-        contents.contents(client, ['https://example.com'], { text: true })
-      );
-    }, 30000);
-  });
+  test(
+    'answer returns citations',
+    async () => {
+      await answer(exa, ['What is the capital of France?'], { json: true });
+      expect(envelope().data.citations).toBeArray();
+    },
+    TIMEOUT
+  );
 
-  describe('similar command', () => {
-    test('finds similar pages', async () => {
-      await withRealApi(() =>
-        similar.similar(client, 'https://example.com', {})
-      );
-    }, 30000);
-
-    test('finds similar pages with exclude-source-domain', async () => {
-      await withRealApi(() =>
-        similar.similar(client, 'https://example.com', {
-          'exclude-source-domain': true,
-        })
-      );
-    }, 30000);
-  });
-
-  describe('answer command', () => {
-    test('gets AI answer without streaming', async () => {
-      await withRealApi(() =>
-        answer.answer(client, 'What is machine learning?', { stream: false })
-      );
-    }, 30000);
-
-    test('gets AI answer with streaming', async () => {
-      await withRealApi(() =>
-        answer.answer(client, 'What is quantum computing?', { stream: true })
-      );
-    }, 30000);
-  });
-
-  // Exa retired the Research API; re-enable once research moves to its replacement.
-  describe.skip('research commands', () => {
-    test('creates research task', async () => {
-      await withRealApi(() =>
-        research.researchCreate(client, 'Latest developments in AI', {})
-      );
-    }, 60000);
-
-    test('creates research task with fast model', async () => {
-      await withRealApi(() =>
-        research.researchCreate(client, 'What is neural networks?', {
-          model: 'fast',
-        })
-      );
-    }, 60000);
-
-    test('lists research tasks', async () => {
-      await withRealApi(() => research.researchList(client, {}));
-    }, 60000);
-  });
+  test(
+    'agent and monitor lists respond',
+    async () => {
+      await agent.agentList(exa, [], { limit: '1', json: true });
+      expect(envelope().data.data).toBeArray();
+      await monitor.monitorList(exa, [], { limit: '1', json: true });
+      expect(envelope().data.data).toBeArray();
+    },
+    TIMEOUT
+  );
 });

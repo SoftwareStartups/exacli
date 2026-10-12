@@ -2,7 +2,7 @@ import * as readline from 'node:readline';
 import { Writable } from 'node:stream';
 import { sanitizeCredential, setSecret } from '../../auth/keychain.js';
 import { createClient } from '../../client.js';
-import * as format from '../../formatters/markdown.js';
+import { formatSuccess } from '../../formatters/markdown.js';
 
 export interface LoginArgs {
   'api-key'?: string;
@@ -41,7 +41,7 @@ export async function login(args: LoginArgs): Promise<void> {
     process.exit(1);
   }
 
-  console.log(format.formatSuccess('API key saved to OS keychain.'));
+  console.log(formatSuccess('API key saved to OS keychain.'));
 }
 
 async function promptForApiKey(): Promise<string> {
@@ -76,8 +76,9 @@ async function promptForApiKey(): Promise<string> {
 
 async function validateApiKey(apiKey: string): Promise<boolean> {
   try {
-    const client = createClient(apiKey);
-    await client.search('test', { numResults: 1 });
+    await createClient(apiKey).request('POST', '/search', {
+      body: { query: 'test', numResults: 1 },
+    });
     return true;
   } catch {
     return false;

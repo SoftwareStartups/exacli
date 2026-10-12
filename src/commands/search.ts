@@ -1,101 +1,77 @@
 import type { ExaClient } from '../client.js';
-import * as format from '../formatters/markdown.js';
-import type { SearchCommandArgs } from './types.js';
+import { formatSearchResults } from '../formatters/markdown.js';
+import { printOutput } from '../utils/commands.js';
 import {
-  hasContentOptions,
-  applyContentOptions,
-  runCommand,
-} from '../utils/commands.js';
-import { parseNumber, parseStringList } from '../utils/validation.js';
+  betaHeaders,
+  buildContents,
+  buildResultFilters,
+  buildUserLocation,
+  compact,
+} from '../utils/options.js';
+import { streamCompletion } from '../utils/stream.js';
+import {
+  UsageError,
+  parseEnum,
+  parseJsonObject,
+  parseStringList,
+  requireArg,
+} from '../utils/validation.js';
+import {
+  type CliArgs,
+  COMPLIANCE_MODES,
+  DEEP_SEARCH_TYPES,
+  SEARCH_TYPES,
+  type SearchResponse,
+} from './types.js';
 
 export async function search(
   client: ExaClient,
-  query: string,
-  args: SearchCommandArgs
-) {
-  await runCommand(async () => {
-    const options = buildSearchOptions(args);
-
-    const response = hasContentOptions(args)
-      ? await client.searchAndContents(query, options)
-      : await client.search(query, options);
-
-    console.log(
-      format.formatSearchResults(response, { json: args.json === true })
-    );
-  });
-}
-
-function buildSearchOptions(args: SearchCommandArgs) {
-  const options: Record<string, unknown> = {};
-
-  const numResults = parseNumber(args['num-results']);
-  if (numResults !== undefined) {
-    options.numResults = numResults;
-  }
-
-  const includeDomains = parseStringList(args['include-domains']);
-  if (includeDomains && includeDomains.length > 0) {
-    options.includeDomains = includeDomains;
-  }
-
-  const excludeDomains = parseStringList(args['exclude-domains']);
-  if (excludeDomains && excludeDomains.length > 0) {
-    options.excludeDomains = excludeDomains;
-  }
-
-  const includeText = parseStringList(args['include-text']);
-  if (includeText && includeText.length > 0) {
-    options.includeText = includeText;
-  }
-
-  const excludeText = parseStringList(args['exclude-text']);
-  if (excludeText && excludeText.length > 0) {
-    options.excludeText = excludeText;
-  }
-
-  if (args.category) {
-    options.category = args.category;
-  }
-
-  if (args['start-date']) {
-    options.startPublishedDate = args['start-date'];
-  }
-
-  if (args['end-date']) {
-    options.endPublishedDate = args['end-date'];
-  }
-
-  if (args['start-crawl-date']) {
-    options.startCrawlDate = args['start-crawl-date'];
-  }
-
-  if (args['end-crawl-date']) {
-    options.endCrawlDate = args['end-crawl-date'];
-  }
-
-  if (args['user-location']) {
-    options.userLocation = args['user-location'];
-  }
-
-  if (args.moderation === true) {
-    options.moderation = true;
-  }
-
-  if (args.autoprompt === true) {
-    options.useAutoprompt = true;
-  }
-
-  if (args.type) {
-    options.type = args.type;
-  }
-
+  positionals: string[],
+  args: CliArgs
+): Promise<void> {
+  const query = requireArg(positionals.join(' '), 'search <query>');
+  const type = parseEnum('type', args.type, SEARCH_TYPES);
   const additionalQueries = parseStringList(args['additional-queries']);
-  if (additionalQueries && additionalQueries.length > 0) {
-    options.additionalQueries = additionalQueries;
+  if (additionalQueries && !DEEP_SEARCH_TYPES.includes(type ?? '')) {
+    throw new UsageError(
+      '--additional-queries requires --type deep-lite, deep, or deep-reasoning'
+    );
+  }
+  const outputSchema = await parseJsonObject(
+    'output-schema',
+    args['output-schema']
+  );
+  if (args.stream && !outputSchema) {
+    throw new UsageError('--stream requires --output-schema');
+  }
+  const { contents, betas } = await buildContents(args);
+
+  const body = compact({
+    query,
+    type,
+    ...buildResultFilters(args),
+    additionalQueries,
+    objective: args.objective,
+    systemPrompt: args['system-prompt'],
+    outputSchema,
+    userLocation: buildUserLocation(args),
+    moderation: args.moderation || undefined,
+    userIdentifier: args['user-id'],
+    compliance: parseEnum('compliance', args.compliance, COMPLIANCE_MODES),
+    includeText: parseStringList(args['include-text']),
+    excludeText: parseStringList(args['exclude-text']),
+    contents,
+  });
+  const headers = betaHeaders(betas);
+
+  if (args.stream) {
+    await streamCompletion(client, '/search', body, headers, args);
+    return;
   }
 
-  applyContentOptions(options, args);
-
-  return options;
+  const response = await client.request<SearchResponse>('POST', '/search', {
+    body,
+    headers,
+  });
+  printOutput(response, args, formatSearchResults);
 }

@@ -2,8 +2,9 @@
 
 ## Module Guide
 
-- **index.ts** — CLI entry point (arg parsing, help text, command dispatch)
-- **client.ts** — Exa SDK wrapper (initializes with API key, exposes typed methods)
+- **index.ts** — Entry point. Declares every flag (`BOOLEAN_FLAGS`/`STRING_FLAGS`, parsed with `parseArgs` in strict mode so unknown flags fail), maps `command [subcommand]` to handlers in `COMMANDS`, resolves the API key, and wraps handlers in `runCommand`.
+- **help.ts** — `MAIN_HELP` plus `COMMAND_HELP[command]`, shown for `exacli <command> --help` and on usage errors.
+- **client.ts** — `createClient(apiKey)` returns `{ request, stream }`. `request(method, path, { body, query, headers })` sends JSON with `x-api-key`; `stream()` POSTs with `Accept: text/event-stream` and yields parsed SSE events. Non-2xx responses throw `ExaApiError` (message, status, tag, requestId) from the API error envelope.
 
 ### auth/
 
@@ -11,34 +12,35 @@ OS keychain credential storage via Bun Secrets API: `login` stores key, `logout`
 
 ### cli/
 
-Auth subcommand handlers: `commands/login.ts` (prompt for and store the API key) and `commands/logout.ts` (remove it). Arg parsing and command dispatch live in `index.ts` (`node:util` `parseArgs`), not a CLI framework.
+Auth subcommand handlers: `commands/login.ts` and `commands/logout.ts`.
 
 ### commands/
 
-One file per command type:
-- **search.ts** — Web search. Supports `--type` (auto/fast/instant/keyword/neural/hybrid + deep-lite/deep/deep-reasoning), domain and text filters (`--include-domains`/`--exclude-domains`/`--include-text`/`--exclude-text`), published + crawl date ranges, `--user-location`, `--moderation`, `--autoprompt`, and `--additional-queries` (deep types only)
-- **contents.ts** — URL content extraction. Shares the content options below
-- **similar.ts** — Find pages similar to a given URL. Shares the content options below
-- **answer.ts** — AI-powered answers with source citations. `--model` is `exa` only (`exa-pro` deprecated); also `--stream`, `--system-prompt`, `--user-location`
-- **research.ts** — Async research tasks (create, poll status, list results)
-- **types.ts** — Shared command arg interfaces
+Handlers share the signature `(client, positionals, args: CliArgs) => Promise<void>`. They validate input, build the request body, call the API, and print via `printOutput`. They throw on errors; they never call `process.exit`.
 
-Content options (shared by search/contents/similar via `applyContentOptions`): `--text`
-(+`--max-characters`), `--highlights`, `--summary`, `--livecrawl`, `--livecrawl-timeout`,
-`--max-age-hours`, `--subpages`, `--subpage-target`, `--extras-links`, `--extras-image-links`.
+- **search.ts** — `/search`, all search types, synthesized output (`--output-schema`, optional `--stream`)
+- **contents.ts** — `/contents` (content options at top level of the body)
+- **similar.ts** — `/findSimilar` (deprecated by Exa, still served)
+- **answer.ts** — `/answer`, optional streaming
+- **agent.ts** — Agent runs, including `--wait` polling and `--stream` events. Replaces the retired Research API
+- **monitor.ts** — Search monitors and batch actions (dry run unless `--execute`)
+- **batch.ts** — Batch API; every call sends `Exa-Beta: batches-2026-06-06`
+- **websets.ts** — Websets API (`/websets/v0`). Handlers are built with `resourceHandler`/`listHandler` factories; bodies merge `--body <json|@file>` with flag-derived fields (flags win). `webset-import create` also uploads the CSV to the returned `uploadUrl`
+- **types.ts** — `CliArgs`, spec enums, beta tokens, and the response shapes the formatters read
 
 ### formatters/
 
-**markdown.ts** — Formats search results, content, and answers as readable markdown (including subpages and `extras` links/image links when present). Default output mode; `--json` flag bypasses formatting for raw JSON.
+**markdown.ts** — One formatter per resource; Websets resources use the generic `formatResource`/`formatResourceList`. Only used without `--json`.
 
 ### utils/
 
-- **commands.ts** — Shared command helpers (error handling, content option building, citation formatting)
-- **validation.ts** — Input validation (numbers, URLs, comma-separated string lists)
+- **options.ts** — `buildContents` (returns `contents` plus required beta tokens), `buildResultFilters`, `buildUserLocation`, `paginationQuery`, `compact`/`nonEmpty`
+- **validation.ts** — `parseNumber`/`parseInteger`/`parseEnum`/`parseJsonObject` (inline JSON or `@file`), `requireArg`. All throw `UsageError`
+- **commands.ts** — `printOutput` (envelope or markdown), `printStreamItem`, `logStatus` (stderr), `runCommand`
+- **stream.ts** — Renders OpenAI-style completion chunks from `/answer` and `/search` streams
 
 ## Key Patterns
 
-- **Commands return raw results** from the Exa SDK; formatters transform them for display
-- **Markdown is the default output** — human-readable, structured. `--json` emits the raw API response
-- **Research tasks are async** — `research` starts a task, `research-status` polls it, `research-list` shows all tasks
-- **Validation at the edge** — `utils/validation.ts` validates CLI input before passing to commands
+- **Spec-first** — Request bodies use the exact field names from `exa-spec.yaml`; unset flags are omitted with `compact()` so the API applies its defaults
+- **Output** — Markdown by default; `--json` prints `{"ok":true,"data":<raw API response>}` or `{"ok":false,"error","code"}`. Streams print NDJSON envelopes. Progress goes to stderr
+- **Validation at the edge** — Bad flag values fail fast with `UsageError` instead of being silently dropped

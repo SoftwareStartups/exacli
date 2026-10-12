@@ -1,424 +1,685 @@
-import { describe, test, expect, mock } from 'bun:test';
-import * as search from '../src/commands/search.js';
-import * as contents from '../src/commands/contents.js';
-import * as similar from '../src/commands/similar.js';
-import * as answer from '../src/commands/answer.js';
-import * as research from '../src/commands/research.js';
+import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
+import * as agent from '../src/commands/agent.js';
+import { answer } from '../src/commands/answer.js';
+import * as batch from '../src/commands/batch.js';
+import { contents } from '../src/commands/contents.js';
+import * as monitor from '../src/commands/monitor.js';
+import { search } from '../src/commands/search.js';
+import { similar } from '../src/commands/similar.js';
 import {
-  hasContentOptions,
-  applyContentOptions,
-  dedupCitations,
-  runCommand,
-} from '../src/utils/commands.js';
-import { asExaClient } from './helpers/mock-client.js';
+  BATCHES_BETA,
+  DYNAMIC_HIGHLIGHTS_BETA,
+} from '../src/commands/types.js';
+import { ExaApiError } from '../src/client.js';
+import { runCommand } from '../src/utils/commands.js';
+import { UsageError } from '../src/utils/validation.js';
+import { mockClient, requestCall } from './helpers/mock-client.js';
 import { stubProcessExit } from './helpers/process-exit.js';
 
-describe('search command', () => {
-  test('passes numResults option to search', async () => {
-    const searchMock = mock(() => ({ results: [] }));
-    const client = asExaClient({ search: searchMock });
-    const restore = stubProcessExit();
+let logSpy: ReturnType<typeof spyOn<Console, 'log'>>;
+let errorSpy: ReturnType<typeof spyOn<Console, 'error'>>;
+let writeSpy: ReturnType<typeof spyOn<typeof process.stdout, 'write'>>;
 
-    await search.search(client, 'test query', { 'num-results': '10' });
+beforeEach(() => {
+  logSpy = spyOn(console, 'log').mockImplementation(() => {});
+  errorSpy = spyOn(console, 'error').mockImplementation(() => {});
+  writeSpy = spyOn(process.stdout, 'write').mockImplementation(() => true);
+});
 
-    restore();
-    expect(searchMock).toHaveBeenCalledWith(
-      'test query',
-      expect.objectContaining({ numResults: 10 })
-    );
-  });
+afterEach(() => {
+  logSpy.mockRestore();
+  errorSpy.mockRestore();
+  writeSpy.mockRestore();
+});
 
-  test('routes to searchAndContents when text option is set', async () => {
-    const searchAndContentsMock = mock(() => ({ results: [] }));
-    const client = asExaClient({ searchAndContents: searchAndContentsMock });
-    const restore = stubProcessExit();
+function printedJson(): unknown {
+  return JSON.parse(String(logSpy.mock.calls.at(-1)?.[0]));
+}
 
-    await search.search(client, 'test query', { text: true });
+describe('search', () => {
+  test('posts the query with filters and omits unset fields', async () => {
+    const m = mockClient(() => ({ results: [] }));
 
-    restore();
-    expect(searchAndContentsMock).toHaveBeenCalledWith(
-      'test query',
-      expect.objectContaining({ text: true })
-    );
-  });
-
-  test('passes include-domains and exclude-domains as parsed lists', async () => {
-    const searchMock = mock(() => ({ results: [] }));
-    const client = asExaClient({ search: searchMock });
-    const restore = stubProcessExit();
-
-    await search.search(client, 'test query', {
-      'include-domains': 'example.com,test.com',
-      'exclude-domains': 'spam.com',
+    await search(m.client, ['AI', 'startups'], {
+      'num-results': '5',
+      type: 'fast',
+      'include-domains': 'a.com,b.com',
+      objective: 'find seed-stage companies',
+      'user-id': 'user_1',
     });
 
-    restore();
-    expect(searchMock).toHaveBeenCalledWith(
-      'test query',
-      expect.objectContaining({
-        includeDomains: ['example.com', 'test.com'],
-        excludeDomains: ['spam.com'],
-      })
-    );
+    const [method, path, options] = requestCall(m);
+    expect(method).toBe('POST');
+    expect(path).toBe('/search');
+    expect(options?.body).toEqual({
+      query: 'AI startups',
+      type: 'fast',
+      numResults: 5,
+      includeDomains: ['a.com', 'b.com'],
+      objective: 'find seed-stage companies',
+      userIdentifier: 'user_1',
+    });
+    expect(options?.headers).toBeUndefined();
   });
 
-  test('maps text/crawl filters, user location, and moderation', async () => {
-    const searchMock = mock(() => ({ results: [] }));
-    const client = asExaClient({ search: searchMock });
-    const restore = stubProcessExit();
+  test('nests content options under contents and sends beta headers', async () => {
+    const m = mockClient(() => ({ results: [] }));
 
-    await search.search(client, 'test query', {
-      'include-text': 'GPT',
-      'exclude-text': 'spam',
-      'start-crawl-date': '2024-01-01',
-      'end-crawl-date': '2024-12-31',
+    await search(m.client, ['q'], {
+      highlights: true,
+      'dynamic-highlights': true,
+    });
+
+    const [, , options] = requestCall(m);
+    expect(options?.body).toEqual({
+      query: 'q',
+      contents: { highlights: { dynamic: true } },
+    });
+    expect(options?.headers).toEqual({ 'Exa-Beta': DYNAMIC_HIGHLIGHTS_BETA });
+  });
+
+  test('passes deep-search synthesis options', async () => {
+    const m = mockClient(() => ({ results: [] }));
+
+    await search(m.client, ['q'], {
+      type: 'deep',
+      'additional-queries': 'a,b',
+      'system-prompt': 'prefer primary sources',
+      'output-schema': '{"type":"text"}',
       'user-location': 'US',
       moderation: true,
     });
 
-    restore();
-    expect(searchMock).toHaveBeenCalledWith(
-      'test query',
-      expect.objectContaining({
-        includeText: ['GPT'],
-        excludeText: ['spam'],
-        startCrawlDate: '2024-01-01',
-        endCrawlDate: '2024-12-31',
-        userLocation: 'US',
-        moderation: true,
-      })
-    );
-  });
-
-  test('maps additional-queries as a parsed list', async () => {
-    const searchMock = mock(() => ({ results: [] }));
-    const client = asExaClient({ search: searchMock });
-    const restore = stubProcessExit();
-
-    await search.search(client, 'test query', {
+    expect(requestCall(m)[2]?.body).toEqual({
+      query: 'q',
       type: 'deep',
-      'additional-queries': 'ml,neural networks',
+      additionalQueries: ['a', 'b'],
+      systemPrompt: 'prefer primary sources',
+      outputSchema: { type: 'text' },
+      userLocation: 'US',
+      moderation: true,
+    });
+  });
+
+  test('rejects additional queries without a deep search type', async () => {
+    const m = mockClient();
+    await expect(
+      search(m.client, ['q'], { 'additional-queries': 'a' })
+    ).rejects.toThrow('--additional-queries requires --type deep-lite');
+    expect(m.request).not.toHaveBeenCalled();
+  });
+
+  test('rejects search types the API no longer accepts', async () => {
+    await expect(
+      search(mockClient().client, ['q'], { type: 'neural' })
+    ).rejects.toThrow(UsageError);
+  });
+
+  test('requires a query', async () => {
+    await expect(search(mockClient().client, [], {})).rejects.toThrow(
+      'Usage: exacli search <query>'
+    );
+  });
+
+  test('streams synthesized output when --stream has a schema', async () => {
+    const m = mockClient(undefined, [
+      { data: '{"choices":[{"delta":{"content":"Hello"}}]}' },
+      { data: '{"citations":[{"url":"https://a.com","title":"A"}]}' },
+      { data: '[DONE]' },
+    ]);
+
+    await search(m.client, ['q'], {
+      stream: true,
+      'output-schema': '{"type":"text"}',
     });
 
-    restore();
-    expect(searchMock).toHaveBeenCalledWith(
-      'test query',
-      expect.objectContaining({
-        type: 'deep',
-        additionalQueries: ['ml', 'neural networks'],
+    expect(m.request).not.toHaveBeenCalled();
+    const [path, options] = m.stream.mock.calls[0] ?? [];
+    expect(path).toBe('/search');
+    expect(options?.body).toMatchObject({ query: 'q', stream: true });
+    expect(writeSpy).toHaveBeenCalledWith('Hello');
+    expect(String(logSpy.mock.calls.at(-1)?.[0])).toContain(
+      '[A](https://a.com)'
+    );
+  });
+
+  test('collects citations from search delta and grounding chunks', async () => {
+    const m = mockClient(undefined, [
+      {
+        data: '{"type":"text-delta","choices":[{"delta":{"content":"Hi","citations":[{"url":"https://a.com","title":"A","id":"1"}]}}]}',
+      },
+      {
+        data: '{"type":"grounding","grounding":[{"field":"x","confidence":"high","citations":[{"url":"https://b.com","title":"B"}]}]}',
+      },
+    ]);
+    await search(m.client, ['q'], {
+      stream: true,
+      'output-schema': '{"type":"text"}',
+    });
+    const printed = String(logSpy.mock.calls.at(-1)?.[0]);
+    expect(printed).toContain('[A](https://a.com)');
+    expect(printed).toContain('[B](https://b.com)');
+  });
+
+  test('fails on error chunks inside search and answer streams', async () => {
+    const searchStream = mockClient(undefined, [
+      { data: '{"type":"error","error":{"message":"synthesis failed"}}' },
+    ]);
+    await expect(
+      search(searchStream.client, ['q'], {
+        stream: true,
+        'output-schema': '{"type":"text"}',
       })
-    );
+    ).rejects.toThrow('synthesis failed');
+
+    const answerStream = mockClient(undefined, [
+      {
+        data: '{"tag":"ERROR","payload":{"error":{"code":500,"message":"boom"}}}',
+      },
+    ]);
+    await expect(
+      answer(answerStream.client, ['q'], { stream: true })
+    ).rejects.toThrow('boom');
   });
 
-  test('routes to searchAndContents for content-only options like livecrawl', async () => {
-    const searchAndContentsMock = mock(() => ({ results: [] }));
-    const client = asExaClient({ searchAndContents: searchAndContentsMock });
-    const restore = stubProcessExit();
-
-    await search.search(client, 'test query', { livecrawl: 'always' });
-
-    restore();
-    expect(searchAndContentsMock).toHaveBeenCalledWith(
-      'test query',
-      expect.objectContaining({ livecrawl: 'always' })
-    );
-  });
-});
-
-describe('contents command', () => {
-  test('passes URL list to getContents for valid URLs', async () => {
-    const getContentsMock = mock(() => ({ results: [] }));
-    const client = asExaClient({ getContents: getContentsMock });
-    const restore = stubProcessExit();
-
-    await contents.contents(
-      client,
-      ['https://example.com', 'https://test.com'],
-      {}
-    );
-
-    restore();
-    expect(getContentsMock).toHaveBeenCalledWith(
-      ['https://example.com', 'https://test.com'],
-      expect.any(Object)
-    );
+  test('requires an output schema to stream', async () => {
+    await expect(
+      search(mockClient().client, ['q'], { stream: true })
+    ).rejects.toThrow('--stream requires --output-schema');
   });
 
-  test('exits without calling getContents when a URL is invalid', async () => {
-    const getContentsMock = mock(() => ({ results: [] }));
-    const client = asExaClient({ getContents: getContentsMock });
-    const restore = stubProcessExit();
-
-    await expect(contents.contents(client, ['not-a-url'], {})).rejects.toThrow(
-      'process.exit called'
-    );
-
-    restore();
-    expect(getContentsMock).not.toHaveBeenCalled();
-  });
-});
-
-describe('similar command', () => {
-  test('passes URL to findSimilar', async () => {
-    const findSimilarMock = mock(() => ({ results: [] }));
-    const client = asExaClient({ findSimilar: findSimilarMock });
-    const restore = stubProcessExit();
-
-    await similar.similar(client, 'https://example.com', {});
-
-    restore();
-    expect(findSimilarMock).toHaveBeenCalledWith(
-      'https://example.com',
-      expect.any(Object)
-    );
-  });
-
-  test('routes to findSimilarAndContents when content options are set', async () => {
-    const findSimilarAndContentsMock = mock(() => ({ results: [] }));
-    const client = asExaClient({
-      findSimilarAndContents: findSimilarAndContentsMock,
-    });
-    const restore = stubProcessExit();
-
-    await similar.similar(client, 'https://example.com', { text: true });
-
-    restore();
-    expect(findSimilarAndContentsMock).toHaveBeenCalledWith(
-      'https://example.com',
-      expect.objectContaining({ text: true })
-    );
-  });
-});
-
-describe('answer command', () => {
-  test('passes query to answer when not streaming', async () => {
-    const answerMock = mock(() => ({ answer: 'test answer' }));
-    const client = asExaClient({ answer: answerMock });
-    const restore = stubProcessExit();
-
-    await answer.answer(client, 'test query', { stream: false });
-
-    restore();
-    expect(answerMock).toHaveBeenCalledWith('test query', expect.any(Object));
-  });
-
-  test('routes to streamAnswer when stream flag is true', async () => {
-    const streamAnswerMock = mock(async function* () {
-      yield { content: 'test', citations: [] };
-    });
-    const client = asExaClient({ streamAnswer: streamAnswerMock });
-    const restore = stubProcessExit();
-
-    await answer.answer(client, 'test query', { stream: true });
-
-    restore();
-    expect(streamAnswerMock).toHaveBeenCalledWith(
-      'test query',
-      expect.any(Object)
-    );
-  });
-
-  test('maps system prompt and user location', async () => {
-    const answerMock = mock(() => ({ answer: 'test answer' }));
-    const client = asExaClient({ answer: answerMock });
-    const restore = stubProcessExit();
-
-    await answer.answer(client, 'test query', {
-      'system-prompt': 'Be concise',
-      'user-location': 'US',
-    });
-
-    restore();
-    expect(answerMock).toHaveBeenCalledWith(
-      'test query',
-      expect.objectContaining({
-        systemPrompt: 'Be concise',
-        userLocation: 'US',
-      })
-    );
-  });
-});
-
-describe('research commands', () => {
-  test('researchCreate maps model alias to API model name', async () => {
-    const createMock = mock(() => ({
-      researchId: 'test-id',
-      status: 'in_progress',
-    }));
-    const client = asExaClient({ research: { create: createMock } });
-    const restore = stubProcessExit();
-
-    await research.researchCreate(client, 'test instructions', {
-      model: 'fast',
-    });
-
-    restore();
-    expect(createMock).toHaveBeenCalledWith({
-      instructions: 'test instructions',
-      model: 'exa-research-fast',
-    });
-  });
-
-  test('researchStatus requests events for the given ID', async () => {
-    const getMock = mock(() => ({
-      researchId: 'test-id',
-      status: 'completed',
-    }));
-    const client = asExaClient({ research: { get: getMock } });
-    const restore = stubProcessExit();
-
-    await research.researchStatus(client, 'test-id', {});
-
-    restore();
-    expect(getMock).toHaveBeenCalledWith('test-id', { events: true });
-  });
-
-  test('researchList forwards limit and cursor as parsed values', async () => {
-    const listMock = mock(() => ({ data: [], hasMore: false }));
-    const client = asExaClient({ research: { list: listMock } });
-    const restore = stubProcessExit();
-
-    await research.researchList(client, {
-      limit: '10',
-      cursor: 'test-cursor',
-    });
-
-    restore();
-    expect(listMock).toHaveBeenCalledWith({
-      limit: 10,
-      cursor: 'test-cursor',
+  test('prints the ok envelope in --json mode', async () => {
+    const m = mockClient(() => ({ requestId: 'r', results: [] }));
+    await search(m.client, ['q'], { json: true });
+    expect(printedJson()).toEqual({
+      ok: true,
+      data: { requestId: 'r', results: [] },
     });
   });
 });
 
-describe('hasContentOptions', () => {
-  test('returns true when text is true', () => {
-    expect(hasContentOptions({ text: true })).toBe(true);
-  });
+describe('contents', () => {
+  test('posts URLs with top-level content options', async () => {
+    const m = mockClient(() => ({ results: [] }));
 
-  test('returns true when highlights is true', () => {
-    expect(hasContentOptions({ highlights: true })).toBe(true);
-  });
-
-  test('returns true when summary is true', () => {
-    expect(hasContentOptions({ summary: true })).toBe(true);
-  });
-
-  test('returns true for content-only options', () => {
-    expect(hasContentOptions({ livecrawl: 'always' })).toBe(true);
-    expect(hasContentOptions({ subpages: '2' })).toBe(true);
-    expect(hasContentOptions({ 'max-characters': '500' })).toBe(true);
-    expect(hasContentOptions({ 'max-age-hours': '24' })).toBe(true);
-    expect(hasContentOptions({ 'extras-links': '5' })).toBe(true);
-  });
-
-  test('returns false when no content options set', () => {
-    expect(hasContentOptions({})).toBe(false);
-  });
-
-  test('returns false when all options are false', () => {
-    expect(
-      hasContentOptions({ text: false, highlights: false, summary: false })
-    ).toBe(false);
-  });
-});
-
-describe('applyContentOptions', () => {
-  test('applies text, highlights, and summary when true', () => {
-    const options: Record<string, unknown> = {};
-    applyContentOptions(options, {
+    await contents(m.client, ['https://a.com', 'https://b.com'], {
       text: true,
-      highlights: true,
+      'max-age-hours': '0',
+    });
+
+    expect(requestCall(m)).toEqual([
+      'POST',
+      '/contents',
+      {
+        body: {
+          urls: ['https://a.com', 'https://b.com'],
+          text: true,
+          maxAgeHours: 0,
+        },
+        headers: undefined,
+      },
+    ]);
+  });
+
+  test('rejects invalid URLs before calling the API', async () => {
+    const m = mockClient();
+    await expect(contents(m.client, ['not-a-url'], {})).rejects.toThrow(
+      'Invalid URL "not-a-url"'
+    );
+    expect(m.request).not.toHaveBeenCalled();
+  });
+});
+
+describe('similar', () => {
+  test('posts to /findSimilar with filters and contents', async () => {
+    const m = mockClient(() => ({ results: [] }));
+
+    await similar(m.client, ['https://a.com'], {
+      'exclude-source-domain': true,
+      'num-results': '3',
       summary: true,
     });
-    expect(options).toEqual({ text: true, highlights: true, summary: true });
-  });
 
-  test('does not apply false options', () => {
-    const options: Record<string, unknown> = {};
-    applyContentOptions(options, { text: false, highlights: true });
-    expect(options).toEqual({ highlights: true });
-  });
-
-  test('does nothing for empty args', () => {
-    const options: Record<string, unknown> = { existing: 'value' };
-    applyContentOptions(options, {});
-    expect(options).toEqual({ existing: 'value' });
-  });
-
-  test('promotes text to an object when max-characters is set', () => {
-    const options: Record<string, unknown> = {};
-    applyContentOptions(options, { text: true, 'max-characters': '500' });
-    expect(options).toEqual({ text: { maxCharacters: 500 } });
-  });
-
-  test('maps livecrawl, subpages, and max-age-hours', () => {
-    const options: Record<string, unknown> = {};
-    applyContentOptions(options, {
-      livecrawl: 'always',
-      'livecrawl-timeout': '5000',
-      'max-age-hours': '24',
-      subpages: '3',
-      'subpage-target': 'about,pricing',
+    expect(requestCall(m)[1]).toBe('/findSimilar');
+    expect(requestCall(m)[2]?.body).toEqual({
+      url: 'https://a.com',
+      numResults: 3,
+      excludeSourceDomain: true,
+      contents: { summary: true },
     });
-    expect(options).toEqual({
-      livecrawl: 'always',
-      livecrawlTimeout: 5000,
-      maxAgeHours: 24,
-      subpages: 3,
-      subpageTarget: ['about', 'pricing'],
-    });
-  });
-
-  test('builds extras from links and image links', () => {
-    const options: Record<string, unknown> = {};
-    applyContentOptions(options, {
-      'extras-links': '5',
-      'extras-image-links': '2',
-    });
-    expect(options).toEqual({ extras: { links: 5, imageLinks: 2 } });
   });
 });
 
-describe('dedupCitations', () => {
-  test('adds new citations', () => {
-    const existing = [{ url: 'https://a.com', title: 'A' }];
-    dedupCitations(existing, [{ url: 'https://b.com', title: 'B' }]);
-    expect(existing).toHaveLength(2);
-    expect(existing[1]?.url).toBe('https://b.com');
+describe('answer', () => {
+  test('posts the query with model and structured output', async () => {
+    const m = mockClient(() => ({ answer: 'Paris', citations: [] }));
+
+    await answer(m.client, ['capital', 'of', 'France'], {
+      model: 'exa-pro',
+      text: true,
+      'system-prompt': 'Be brief',
+      'output-schema': '{"type":"object"}',
+      'user-id': 'u1',
+    });
+
+    expect(requestCall(m)).toEqual([
+      'POST',
+      '/answer',
+      {
+        body: {
+          query: 'capital of France',
+          model: 'exa-pro',
+          text: true,
+          systemPrompt: 'Be brief',
+          outputSchema: { type: 'object' },
+          userIdentifier: 'u1',
+        },
+      },
+    ]);
   });
 
-  test('skips duplicate URLs', () => {
-    const existing = [{ url: 'https://a.com', title: 'A' }];
-    dedupCitations(existing, [{ url: 'https://a.com', title: 'A duplicate' }]);
-    expect(existing).toHaveLength(1);
+  test('rejects unknown models', async () => {
+    await expect(
+      answer(mockClient().client, ['q'], { model: 'gpt' })
+    ).rejects.toThrow('--model must be one of: exa, exa-pro');
   });
 
-  test('handles undefined incoming', () => {
-    const existing = [{ url: 'https://a.com', title: 'A' }];
-    dedupCitations(existing, undefined);
-    expect(existing).toHaveLength(1);
+  test('emits NDJSON envelopes when streaming with --json', async () => {
+    const m = mockClient(undefined, [
+      { data: '{"choices":[{"delta":{"content":"Hi"}}]}' },
+      { data: '[DONE]' },
+    ]);
+
+    await answer(m.client, ['q'], { stream: true, json: true });
+
+    expect(m.stream.mock.calls[0]?.[0]).toBe('/answer');
+    expect(printedJson()).toEqual({
+      ok: true,
+      data: { choices: [{ delta: { content: 'Hi' } }] },
+    });
+  });
+});
+
+describe('agent', () => {
+  test('run maps flags to the Agent API body', async () => {
+    const m = mockClient(() => ({ id: 'agent_run_1', status: 'queued' }));
+
+    await agent.agentRun(m.client, ['find', 'startups'], {
+      effort: 'ultra',
+      'output-schema': '{"type":"object"}',
+      input: '{"data":[{"name":"Acme"}]}',
+      'previous-run': 'agent_run_0',
+      'data-sources': 'fiber,similarweb',
+      'max-cost': '25',
+      'max-duration': '600',
+      metadata: '{"team":"growth"}',
+    });
+
+    expect(requestCall(m)).toEqual([
+      'POST',
+      '/agent/runs',
+      {
+        body: {
+          query: 'find startups',
+          effort: 'ultra',
+          outputSchema: { type: 'object' },
+          input: { data: [{ name: 'Acme' }] },
+          previousRunId: 'agent_run_0',
+          metadata: { team: 'growth' },
+          dataSources: [{ provider: 'fiber' }, { provider: 'similarweb' }],
+          budget: { maxCostDollars: 25, maxDurationSeconds: 600 },
+        },
+      },
+    ]);
+  });
+
+  test('run --wait polls until the run is terminal', async () => {
+    const statuses = ['queued', 'running', 'completed'];
+    const m = mockClient((_method, _path) => ({
+      id: 'r1',
+      status: statuses.shift(),
+    }));
+
+    await agent.agentRun(m.client, ['q'], {
+      wait: true,
+      'poll-interval': '1',
+      json: true,
+    });
+
+    expect(m.request).toHaveBeenCalledTimes(3);
+    expect(requestCall(m, 1).slice(0, 2)).toEqual(['GET', '/agent/runs/r1']);
+    expect(printedJson()).toEqual({
+      ok: true,
+      data: { id: 'r1', status: 'completed' },
+    });
+  });
+
+  test('run --wait gives up after the timeout', async () => {
+    const m = mockClient(() => ({ id: 'r1', status: 'running' }));
+    await expect(
+      agent.agentRun(m.client, ['q'], {
+        wait: true,
+        'poll-interval': '1',
+        timeout: '0',
+      })
+    ).rejects.toThrow('Timed out waiting for run r1');
+  });
+
+  test('run --stream prints the terminal run', async () => {
+    const m = mockClient(undefined, [
+      { event: 'agent_run.created', data: '{"id":"r1","status":"queued"}' },
+      { event: 'agent_run.source.added', data: '{"url":"https://a.com"}' },
+      {
+        event: 'agent_run.completed',
+        data: '{"id":"r1","status":"completed","output":{"text":"Done"}}',
+      },
+    ]);
+
+    await agent.agentRun(m.client, ['q'], { stream: true });
+
+    expect(errorSpy.mock.calls.map((c) => c[0])).toEqual([
+      'agent_run.created',
+      'agent_run.source.added',
+    ]);
+    expect(String(logSpy.mock.calls.at(-1)?.[0])).toContain('Done');
+  });
+
+  test('run --stream also accepts spec-shaped {event, data} payloads', async () => {
+    const m = mockClient(undefined, [
+      {
+        data: '{"id":"1","event":"agent_run.completed","data":{"id":"r1","status":"completed","output":{"text":"Wrapped"}},"createdAt":"2026-10-12T00:00:00Z"}',
+      },
+    ]);
+    await agent.agentRun(m.client, ['q'], { stream: true });
+    expect(String(logSpy.mock.calls.at(-1)?.[0])).toContain('Wrapped');
+  });
+
+  test('run rejects unknown effort levels', async () => {
+    await expect(
+      agent.agentRun(mockClient().client, ['q'], { effort: 'huge' })
+    ).rejects.toThrow('--effort must be one of');
+  });
+
+  test.each([
+    [agent.agentGet, 'GET', '/agent/runs/r%2F1'],
+    [agent.agentCancel, 'POST', '/agent/runs/r%2F1/cancel'],
+    [agent.agentStop, 'POST', '/agent/runs/r%2F1/stop'],
+    [agent.agentDelete, 'DELETE', '/agent/runs/r%2F1'],
+  ] as const)('%p calls %s %s with an encoded id', async (fn, method, path) => {
+    const m = mockClient(() => ({ id: 'r/1', status: 'cancelled' }));
+    await fn(m.client, ['r/1'], {});
+    expect(requestCall(m).slice(0, 2)).toEqual([method, path]);
+  });
+
+  test('list and events forward pagination', async () => {
+    const m = mockClient(() => ({ data: [], hasMore: false }));
+    await agent.agentList(m.client, [], { limit: '10', cursor: 'c' });
+    await agent.agentEvents(m.client, ['r1'], { limit: '5' });
+    expect(requestCall(m, 0)[2]?.query).toEqual({ limit: 10, cursor: 'c' });
+    expect(requestCall(m, 1).slice(0, 2)).toEqual([
+      'GET',
+      '/agent/runs/r1/events',
+    ]);
+  });
+});
+
+describe('monitor', () => {
+  test('create builds search, trigger, and webhook objects', async () => {
+    const m = mockClient(() => ({ id: 'm1', status: 'active' }));
+
+    await monitor.monitorCreate(m.client, ['AI', 'news'], {
+      name: 'ai-news',
+      period: '1d',
+      'webhook-url': 'https://hooks.example.com/exa',
+      'webhook-events': 'monitor.run.completed',
+      'num-results': '5',
+      highlights: true,
+      'output-schema': '{"type":"text"}',
+    });
+
+    expect(requestCall(m)).toEqual([
+      'POST',
+      '/monitors',
+      {
+        body: {
+          name: 'ai-news',
+          search: {
+            query: 'AI news',
+            numResults: 5,
+            contents: { highlights: true },
+          },
+          trigger: { type: 'interval', period: '1d' },
+          outputSchema: { type: 'text' },
+          webhook: {
+            url: 'https://hooks.example.com/exa',
+            events: ['monitor.run.completed'],
+          },
+        },
+      },
+    ]);
+  });
+
+  test('create sends the beta header for dynamic highlights', async () => {
+    const m = mockClient(() => ({ id: 'm1', status: 'active' }));
+    await monitor.monitorCreate(m.client, ['q'], {
+      'webhook-url': 'https://hooks.example.com/exa',
+      'dynamic-highlights': true,
+    });
+    expect(requestCall(m)[2]?.headers).toEqual({
+      'Exa-Beta': DYNAMIC_HIGHLIGHTS_BETA,
+    });
+  });
+
+  test('create requires a webhook URL', async () => {
+    await expect(
+      monitor.monitorCreate(mockClient().client, ['q'], {})
+    ).rejects.toThrow('--webhook-url is required');
+  });
+
+  test('update sends only changed fields and can remove the schedule', async () => {
+    const m = mockClient(() => ({ id: 'm1', status: 'paused' }));
+
+    await monitor.monitorUpdate(m.client, ['m1'], {
+      status: 'paused',
+      query: 'new query',
+      'remove-schedule': true,
+    });
+
+    expect(requestCall(m)).toEqual([
+      'PATCH',
+      '/monitors/m1',
+      {
+        body: {
+          status: 'paused',
+          search: { query: 'new query' },
+          trigger: null,
+        },
+      },
+    ]);
+  });
+
+  test('update rejects an empty change set', async () => {
+    await expect(
+      monitor.monitorUpdate(mockClient().client, ['m1'], {})
+    ).rejects.toThrow('Nothing to update');
+  });
+
+  test('list expands metadata into bracketed query filters', async () => {
+    const m = mockClient(() => ({ data: [] }));
+
+    await monitor.monitorList(m.client, [], {
+      status: 'active',
+      name: 'ai',
+      metadata: '{"team":"growth"}',
+      limit: '20',
+    });
+
+    expect(requestCall(m)[2]?.query).toEqual({
+      limit: 20,
+      status: 'active',
+      name: 'ai',
+      'metadata[team]': 'growth',
+    });
+  });
+
+  test('batch defaults to a dry run and needs a filter', async () => {
+    const m = mockClient(() => ({
+      action: 'pause',
+      affected: 1,
+      ids: ['m1'],
+      dry_run: true,
+    }));
+
+    await monitor.monitorBatch(m.client, ['pause'], { name: 'ai' });
+    expect(requestCall(m)[2]?.body).toEqual({
+      action: 'pause',
+      filter: { name: 'ai' },
+      dry_run: true,
+    });
+
+    await monitor.monitorBatch(m.client, ['delete'], {
+      status: 'paused',
+      execute: true,
+    });
+    expect(requestCall(m, 1)[2]?.body).toMatchObject({ dry_run: false });
+
+    await expect(monitor.monitorBatch(m.client, ['pause'], {})).rejects.toThrow(
+      'needs at least one filter'
+    );
+  });
+
+  test('runs and run address nested resources', async () => {
+    const m = mockClient(() => ({ data: [], id: 'run1', status: 'completed' }));
+    await monitor.monitorRuns(m.client, ['m1'], {});
+    await monitor.monitorRun(m.client, ['m1', 'run1'], {});
+    await monitor.monitorTrigger(m.client, ['m1'], {});
+    expect(m.request.mock.calls.map((c) => `${c[0]} ${c[1]}`)).toEqual([
+      'GET /monitors/m1/runs',
+      'GET /monitors/m1/runs/run1',
+      'POST /monitors/m1/trigger',
+    ]);
+  });
+});
+
+describe('batch', () => {
+  const requests = [
+    { customId: 'a', method: 'POST', url: '/search', body: { query: 'x' } },
+  ];
+
+  test('parseBatchRequests accepts JSON arrays and JSONL', () => {
+    expect(batch.parseBatchRequests(JSON.stringify(requests))).toEqual(
+      requests
+    );
+    const jsonl = `${JSON.stringify(requests[0])}\n\n${JSON.stringify(requests[0])}\n`;
+    expect(batch.parseBatchRequests(jsonl)).toHaveLength(2);
+    expect(() => batch.parseBatchRequests('[]')).toThrow(UsageError);
+    expect(() => batch.parseBatchRequests('{bad')).toThrow(UsageError);
+  });
+
+  test('create posts requests from a file with the beta header', async () => {
+    const path = `${import.meta.dir}/.tmp-batch.jsonl`;
+    await Bun.write(path, JSON.stringify(requests[0]));
+    const m = mockClient(() => ({ id: 'b1', status: 'in_progress' }));
+    try {
+      await batch.batchCreate(m.client, [path], { metadata: '{"job":"1"}' });
+    } finally {
+      await Bun.file(path).delete();
+    }
+
+    expect(requestCall(m)).toEqual([
+      'POST',
+      '/batches',
+      {
+        body: { requests, metadata: { job: '1' } },
+        headers: { 'Exa-Beta': BATCHES_BETA },
+      },
+    ]);
+  });
+
+  test('list only accepts the completed status filter', async () => {
+    await expect(
+      batch.batchList(mockClient().client, [], { status: 'running' })
+    ).rejects.toThrow('--status only supports: completed');
+  });
+
+  test('results refuses batches without a results URL', async () => {
+    const m = mockClient(() => ({ id: 'b1', status: 'in_progress' }));
+    await expect(batch.batchResults(m.client, ['b1'], {})).rejects.toThrow(
+      'Batch b1 has no results yet (status: in_progress)'
+    );
+  });
+
+  test('results downloads and parses the JSONL file', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(
+        '{"customId":"a"}\n{"customId":"b"}\n'
+      )) as unknown as typeof fetch;
+    const m = mockClient(() => ({
+      id: 'b1',
+      status: 'completed',
+      resultsUrl: 'https://files.example.com/b1.jsonl',
+    }));
+    try {
+      await batch.batchResults(m.client, ['b1'], { json: true });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+    expect(printedJson()).toEqual({
+      ok: true,
+      data: [{ customId: 'a' }, { customId: 'b' }],
+    });
   });
 });
 
 describe('runCommand', () => {
-  test('executes function successfully', async () => {
-    let called = false;
-    await runCommand(async () => {
-      called = true;
+  test('prints the error envelope with the API tag in --json mode', async () => {
+    const restore = stubProcessExit();
+    try {
+      await expect(
+        runCommand({ json: true }, async () => {
+          throw new ExaApiError('Invalid API key.', 401, 'INVALID_API_KEY');
+        })
+      ).rejects.toThrow('process.exit called');
+    } finally {
+      restore();
+    }
+    expect(printedJson()).toEqual({
+      ok: false,
+      error: 'Invalid API key. Run "exacli login" or set EXA_API_KEY.',
+      code: 'INVALID_API_KEY',
     });
-    expect(called).toBe(true);
   });
 
-  test('calls process.exit(1) on error', async () => {
+  test('only suggests login for invalid API keys', async () => {
     const restore = stubProcessExit();
+    try {
+      await expect(
+        runCommand({ json: true }, async () => {
+          throw new ExaApiError('Upgrade to a Pro plan.', 401);
+        })
+      ).rejects.toThrow('process.exit called');
+    } finally {
+      restore();
+    }
+    expect(printedJson()).toEqual({
+      ok: false,
+      error: 'Upgrade to a Pro plan.',
+      code: 'HTTP_401',
+    });
+  });
 
-    await expect(
-      runCommand(async () => {
-        throw new Error('test error');
-      })
-    ).rejects.toThrow('process.exit called');
-
-    restore();
+  test('prints usage errors to stderr in markdown mode', async () => {
+    const restore = stubProcessExit();
+    try {
+      await expect(
+        runCommand({}, async () => {
+          throw new UsageError('bad flag');
+        })
+      ).rejects.toThrow('process.exit called');
+    } finally {
+      restore();
+    }
+    expect(errorSpy).toHaveBeenCalledWith('Error: bad flag');
   });
 });

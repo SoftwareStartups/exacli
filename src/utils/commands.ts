@@ -1,96 +1,64 @@
-import type { ContentArgs, Citation } from '../commands/types.js';
-import * as format from '../formatters/markdown.js';
-import { parseNumber, parseStringList } from './validation.js';
+/**
+ * Shared command plumbing: output envelope and error handling.
+ */
 
-export function hasContentOptions(args: ContentArgs): boolean {
-  return (
-    args.text === true ||
-    args.highlights === true ||
-    args.summary === true ||
-    args.livecrawl !== undefined ||
-    args['livecrawl-timeout'] !== undefined ||
-    args['max-age-hours'] !== undefined ||
-    args['max-characters'] !== undefined ||
-    args.subpages !== undefined ||
-    args['subpage-target'] !== undefined ||
-    args['extras-links'] !== undefined ||
-    args['extras-image-links'] !== undefined
+import { ExaApiError } from '../client.js';
+import type { CliArgs } from '../commands/types.js';
+import { UsageError } from './validation.js';
+
+export function printOutput<T>(
+  data: T,
+  args: CliArgs,
+  toMarkdown: (data: T) => string
+): void {
+  console.log(
+    args.json ? JSON.stringify({ ok: true, data }) : toMarkdown(data)
   );
 }
 
-export function applyContentOptions(
-  options: Record<string, unknown>,
-  args: ContentArgs
-): void {
-  const maxCharacters = parseNumber(args['max-characters']);
-  if (maxCharacters !== undefined) {
-    options.text = { maxCharacters };
-  } else if (args.text === true) {
-    options.text = true;
-  }
-
-  if (args.highlights === true) {
-    options.highlights = true;
-  }
-  if (args.summary === true) {
-    options.summary = true;
-  }
-
-  if (args.livecrawl) {
-    options.livecrawl = args.livecrawl;
-  }
-
-  const livecrawlTimeout = parseNumber(args['livecrawl-timeout']);
-  if (livecrawlTimeout !== undefined) {
-    options.livecrawlTimeout = livecrawlTimeout;
-  }
-
-  const maxAgeHours = parseNumber(args['max-age-hours']);
-  if (maxAgeHours !== undefined) {
-    options.maxAgeHours = maxAgeHours;
-  }
-
-  const subpages = parseNumber(args.subpages);
-  if (subpages !== undefined) {
-    options.subpages = subpages;
-  }
-
-  const subpageTarget = parseStringList(args['subpage-target']);
-  if (subpageTarget && subpageTarget.length > 0) {
-    options.subpageTarget = subpageTarget;
-  }
-
-  const extras: Record<string, number> = {};
-  const extrasLinks = parseNumber(args['extras-links']);
-  if (extrasLinks !== undefined) {
-    extras.links = extrasLinks;
-  }
-  const extrasImageLinks = parseNumber(args['extras-image-links']);
-  if (extrasImageLinks !== undefined) {
-    extras.imageLinks = extrasImageLinks;
-  }
-  if (Object.keys(extras).length > 0) {
-    options.extras = extras;
-  }
+/** Prints one streamed item: an NDJSON envelope line in --json mode. */
+export function printStreamItem(data: unknown, args: CliArgs): void {
+  if (args.json) console.log(JSON.stringify({ ok: true, data }));
 }
 
-export async function runCommand(fn: () => Promise<void>): Promise<void> {
+/** Progress and status messages go to stderr so stdout stays data-only. */
+export function logStatus(message: string): void {
+  console.error(message);
+}
+
+function errorCode(error: unknown): string {
+  if (error instanceof UsageError) return 'USAGE_ERROR';
+  if (error instanceof ExaApiError) return error.tag ?? `HTTP_${error.status}`;
+  return 'ERROR';
+}
+
+function errorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const invalidKey =
+    error instanceof ExaApiError &&
+    error.status === 401 &&
+    (error.tag === 'INVALID_API_KEY' || /api key/i.test(message));
+  if (invalidKey) {
+    return `${message} Run "exacli login" or set EXA_API_KEY.`;
+  }
+  return message;
+}
+
+export async function runCommand(
+  args: CliArgs,
+  fn: () => Promise<void>
+): Promise<void> {
   try {
     await fn();
   } catch (error) {
-    console.error(format.formatError(error));
-    process.exit(1);
-  }
-}
-
-export function dedupCitations(
-  existing: Citation[],
-  incoming: Citation[] | undefined
-): void {
-  if (!incoming) return;
-  for (const citation of incoming) {
-    if (citation && !existing.some((c) => c.url === citation.url)) {
-      existing.push(citation);
+    const message = errorMessage(error);
+    if (args.json) {
+      console.log(
+        JSON.stringify({ ok: false, error: message, code: errorCode(error) })
+      );
+    } else {
+      console.error(`Error: ${message}`);
     }
+    process.exit(1);
   }
 }
