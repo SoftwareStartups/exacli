@@ -11,7 +11,7 @@ import { logStatus, printStreamItem, sanitize } from './commands.js';
 /** Union of the /answer and /search stream chunk shapes we render. */
 interface CompletionChunk {
   type?: string;
-  delta?: string;
+  delta?: unknown;
   choices?: Array<{ delta?: { content?: string; citations?: Citation[] } }>;
   citations?: Citation[] | null;
   grounding?: Array<{ citations?: Citation[] }>;
@@ -68,7 +68,9 @@ export async function streamCompletion(
     }
     // /search sends the text in `delta`; /answer only in `choices`.
     const content = chunk.delta ?? chunk.choices?.[0]?.delta?.content;
-    if (content) process.stdout.write(sanitize(content));
+    if (typeof content === 'string' && content) {
+      process.stdout.write(sanitize(content));
+    }
     for (const citation of chunkCitations(chunk)) {
       if (!citations.some((c) => c.url === citation.url)) {
         citations.push(citation);

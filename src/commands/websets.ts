@@ -439,19 +439,24 @@ export const websetMonitors: Record<string, Handler> = {
 
 // Imports
 
-/** Counts non-blank CSV records; newlines inside quoted fields do not count. */
+/**
+ * Counts non-blank CSV records. A quote only opens a quoted field at the
+ * start of a field, so newlines inside quoted fields do not count.
+ */
 export function countCsvRecords(csv: string): number {
   let records = 0;
   let inQuotes = false;
+  let fieldStart = true;
   let hasContent = false;
-  for (const char of csv) {
-    if (char === '"') inQuotes = !inQuotes;
+  for (const char of csv.replace(/\r\n?/g, '\n')) {
+    if (char === '"' && (inQuotes || fieldStart)) inQuotes = !inQuotes;
     if (char === '\n' && !inQuotes) {
       if (hasContent) records++;
       hasContent = false;
     } else if (char.trim() !== '') {
       hasContent = true;
     }
+    fieldStart = !inQuotes && (char === ',' || char === '\n');
   }
   return hasContent ? records + 1 : records;
 }

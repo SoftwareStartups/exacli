@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
-import { ExaApiError } from '../src/client.js';
+import { ExaApiError, RequestTimeoutError } from '../src/client.js';
 import * as agent from '../src/commands/agent.js';
 import { answer } from '../src/commands/answer.js';
 import * as batch from '../src/commands/batch.js';
@@ -715,6 +715,21 @@ describe('agent exit codes, retries, and streams', () => {
     expect(process.exitCode).toBe(0);
   });
 
+  test('run --wait retries timed-out polls and reports the last failure', async () => {
+    const m = mockClient((method) => {
+      if (method === 'POST') return { id: 'r1', status: 'running' };
+      throw new RequestTimeoutError();
+    });
+    const sleep = spyOn(Bun, 'sleep').mockImplementation(
+      () => new Promise((resolve) => setTimeout(resolve, 2))
+    );
+    await expect(
+      agent.agentRun(m.client, ['q'], { wait: true, timeout: '20' })
+    ).rejects.toThrow('last poll failed: Request timed out after 300 seconds');
+    sleep.mockRestore();
+    expect(m.request.mock.calls.length).toBeGreaterThan(2);
+  });
+
   test('run --wait does not retry client errors', async () => {
     const m = mockClient((method) => {
       if (method === 'POST') return { id: 'r1', status: 'running' };
@@ -799,6 +814,15 @@ describe('completion streams', () => {
     expect(writeSpy).toHaveBeenCalledWith('Hello');
   });
 
+  test('ignores a non-string delta', async () => {
+    const m = mockClient(undefined, [
+      { data: '{"type":"text-delta","delta":{"a":1}}' },
+      { data: '[DONE]' },
+    ]);
+    await search(m.client, ['q'], schema);
+    expect(writeSpy).not.toHaveBeenCalledWith(expect.anything());
+  });
+
   test('fails when the stream ends without [DONE]', async () => {
     const m = mockClient(undefined, [
       { data: '{"type":"text-delta","delta":"partial"}' },
@@ -839,6 +863,10 @@ describe('completion streams', () => {
 });
 
 describe('terminal output and usage errors', () => {
+  test('sanitize removes bidi overrides but keeps accented text', () => {
+    expect(sanitize('caf\u00e9 \u202eevil\u2066')).toBe('caf\u00e9 evil');
+  });
+
   test('sanitize removes control characters but keeps newlines and tabs', () => {
     expect(sanitize('a\u001b[31mred\u0007\tb\nc\u009b')).toBe('a[31mred\tb\nc');
   });

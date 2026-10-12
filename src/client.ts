@@ -32,6 +32,13 @@ export interface ExaClient {
   stream(path: string, options?: RequestOptions): AsyncGenerator<SseEvent>;
 }
 
+export class RequestTimeoutError extends Error {
+  constructor() {
+    super(`Request timed out after ${REQUEST_TIMEOUT_MS / 1000} seconds`);
+    this.name = 'RequestTimeoutError';
+  }
+}
+
 export class ExaApiError extends Error {
   constructor(
     message: string,
@@ -84,10 +91,17 @@ export function createClient(
       path: string,
       options: RequestOptions = {}
     ) {
-      const response = await withTimeout((signal) =>
-        send(method, path, options, 'application/json', signal)
-      );
-      const text = await response.text();
+      // The timeout covers reading the body, so it stays inside withTimeout.
+      const { response, text } = await withTimeout(async (signal) => {
+        const res = await send(
+          method,
+          path,
+          options,
+          'application/json',
+          signal
+        );
+        return { response: res, text: await res.text() };
+      });
       if (!text) return {} as T;
       try {
         return JSON.parse(text) as T;
@@ -115,22 +129,27 @@ async function withTimeout<T>(
     return await fn(AbortSignal.timeout(REQUEST_TIMEOUT_MS));
   } catch (error) {
     if (error instanceof DOMException && error.name === 'TimeoutError') {
-      throw new Error(
-        `Request timed out after ${REQUEST_TIMEOUT_MS / 1000} seconds`
-      );
+      throw new RequestTimeoutError();
     }
     throw error;
   }
 }
 
+export interface ExternalResponse {
+  ok: boolean;
+  status: number;
+  text: string;
+}
+
 /**
- * Fetches a URL handed out by the API (batch results, import uploads).
- * Only https is allowed, so a bad response cannot point at local files.
+ * Fetches a URL handed out by the API (batch results, import uploads) and
+ * reads its body. Only https is allowed, so a bad response cannot point at
+ * local files.
  */
 export async function fetchExternal(
   url: string,
   init: RequestInit = {}
-): Promise<Response> {
+): Promise<ExternalResponse> {
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -140,7 +159,14 @@ export async function fetchExternal(
   if (parsed.protocol !== 'https:') {
     throw new Error(`Refusing to fetch non-https URL from the API: ${url}`);
   }
-  return withTimeout((signal) => fetch(parsed, { ...init, signal }));
+  return withTimeout(async (signal) => {
+    const response = await fetch(parsed, { ...init, signal });
+    return {
+      ok: response.ok,
+      status: response.status,
+      text: await response.text(),
+    };
+  });
 }
 
 /** Parses an SSE data payload, reporting non-JSON data clearly. */

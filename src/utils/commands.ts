@@ -6,9 +6,10 @@ import { ExaApiError } from '../client.js';
 import type { CliArgs } from '../commands/types.js';
 import { UsageError } from './validation.js';
 
-// C0/C1 control characters except tab and newline.
-// biome-ignore lint/suspicious/noControlCharactersInRegex: matching them is the point
-const CONTROL_CHARS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g;
+// C0/C1 control characters except tab and newline, plus bidi overrides.
+const CONTROL_CHARS =
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: matching them is the point
+  /[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g;
 
 /**
  * Strips terminal control sequences from text that may come from crawled

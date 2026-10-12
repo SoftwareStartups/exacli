@@ -2,6 +2,7 @@ import { afterEach, describe, expect, mock, test } from 'bun:test';
 import {
   createClient,
   ExaApiError,
+  RequestTimeoutError,
   fetchExternal,
   parseEventData,
   parseSse,
@@ -186,6 +187,19 @@ describe('client error handling', () => {
     expect(fetchMock.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
   });
 
+  test('reports a timeout while reading the body as RequestTimeoutError', async () => {
+    globalThis.fetch = (async () => ({
+      ok: true,
+      status: 200,
+      text: async () => {
+        throw new DOMException('The operation timed out.', 'TimeoutError');
+      },
+    })) as unknown as typeof fetch;
+    await expect(
+      createClient('k', 'https://api.test').request('GET', '/x')
+    ).rejects.toBeInstanceOf(RequestTimeoutError);
+  });
+
   test('parseEventData reports non-JSON stream data clearly', () => {
     expect(parseEventData('{"a":1}')).toEqual({ a: 1 });
     expect(() => parseEventData('ping')).toThrow(
@@ -198,7 +212,7 @@ describe('fetchExternal', () => {
   test('fetches https URLs handed out by the API', async () => {
     const fetchMock = mockFetch(new Response('ok'));
     const response = await fetchExternal('https://files.exa.ai/r.jsonl');
-    expect(await response.text()).toBe('ok');
+    expect(response).toEqual({ ok: true, status: 200, text: 'ok' });
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
       'https://files.exa.ai/r.jsonl'
     );

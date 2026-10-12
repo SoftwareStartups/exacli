@@ -430,4 +430,12 @@ describe('webset-import create edge cases', () => {
     expect(websets.countCsvRecords('a\n\n"b\nc"\nd')).toBe(3);
     expect(websets.countCsvRecords('')).toBe(0);
   });
+
+  test('countCsvRecords ignores quotes inside unquoted fields', () => {
+    expect(websets.countCsvRecords('item,size\npipe,5"\nrod,2\n')).toBe(3);
+  });
+
+  test('countCsvRecords handles CR-only line endings', () => {
+    expect(websets.countCsvRecords('a\rb\rc')).toBe(3);
+  });
 });

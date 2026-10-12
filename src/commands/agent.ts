@@ -1,4 +1,9 @@
-import { ExaApiError, type ExaClient, parseEventData } from '../client.js';
+import {
+  ExaApiError,
+  type ExaClient,
+  RequestTimeoutError,
+  parseEventData,
+} from '../client.js';
 import {
   formatAgentEvents,
   formatAgentRun,
@@ -141,12 +146,13 @@ async function waitForRun(
   if (timeout <= 0) throw new UsageError('--timeout must be positive');
   const deadline = Date.now() + timeout;
   let current = run;
+  let lastError: Error | undefined;
   logStatus(`Run ${run.id}: ${run.status}`);
 
   while (!TERMINAL_STATUSES.has(current.status)) {
     if (Date.now() >= deadline) {
       throw new Error(
-        `Timed out waiting for run ${run.id} (status: ${current.status}). Check later with: exacli agent get ${run.id}`
+        `Timed out waiting for run ${run.id} (${lastError ? `last poll failed: ${lastError.message}` : `status: ${current.status}`}). Check later with: exacli agent get ${run.id}`
       );
     }
     await Bun.sleep(interval);
@@ -155,11 +161,13 @@ async function waitForRun(
       current = await client.request<AgentRun>('GET', runPath(run.id));
     } catch (error) {
       if (!isTransient(error)) throw error;
+      lastError = error as Error;
       logStatus(
         `Polling ${run.id} failed, retrying: ${(error as Error).message}`
       );
       continue;
     }
+    lastError = undefined;
     if (current.status !== previous) {
       logStatus(`Run ${run.id}: ${current.status}`);
     }
@@ -172,7 +180,7 @@ function isTransient(error: unknown): boolean {
   if (error instanceof ExaApiError) {
     return error.status === 429 || error.status >= 500;
   }
-  return error instanceof TypeError;
+  return error instanceof TypeError || error instanceof RequestTimeoutError;
 }
 
 export async function agentGet(

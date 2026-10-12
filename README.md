@@ -169,7 +169,7 @@ exacli agent events agent_run_123
 exacli agent delete agent_run_123
 ```
 
-`agent run` returns immediately with a run ID. Use `--wait` to poll until it finishes or `--stream` to follow its events. With either flag, the command exits 1 when the run ends `failed` or `cancelled`.
+`agent run` returns immediately with a run ID. Use `--wait` to poll until it finishes or `--stream` to follow its events. The command exits 1 when the run it prints has ended `failed` or `cancelled`.
 
 **Run options:** `--effort <minimal|low|medium|high|xhigh|auto|ultra>`, `--system-prompt`, `--output-schema`, `--input <json|@file>`, `--previous-run <id>`, `--data-sources <list>`, `--max-cost <usd>`, `--max-duration <seconds>`, `--metadata`, `--user-id`, `--wait`, `--poll-interval <ms>`, `--timeout <ms>`, `--stream`
 

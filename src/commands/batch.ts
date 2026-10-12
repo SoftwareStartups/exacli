@@ -130,7 +130,7 @@ export async function batchResults(
   if (!response.ok) {
     throw new Error(`Failed to download results (HTTP ${response.status})`);
   }
-  const jsonl = await response.text();
+  const jsonl = response.text;
   if (!args.json) {
     printText(jsonl.trimEnd());
     return;

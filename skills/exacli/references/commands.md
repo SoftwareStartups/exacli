@@ -85,7 +85,7 @@ exacli agent delete <run-id>
 | `--system-prompt`, `--metadata`, `--user-id` | Guidance and bookkeeping |
 | `--wait [--poll-interval <ms>] [--timeout <ms>]` | Poll until finished |
 
-Run statuses: `queued`, `running`, `completed`, `failed`, `cancelled`. Stop reasons include `schema_satisfied`, `budget_reached`, `time_limit_reached`, `stopped`. With `--wait` or `--stream`, a `failed` or `cancelled` run exits 1.
+Run statuses: `queued`, `running`, `completed`, `failed`, `cancelled`. Stop reasons include `schema_satisfied`, `budget_reached`, `time_limit_reached`, `stopped`. `agent run` exits 1 when the run it prints is `failed` or `cancelled`.
 
 Structured list example:
 

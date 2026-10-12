@@ -181,8 +181,7 @@ Run Options:
   --timeout <ms>                  Give up waiting after this (default 1800000)
   --stream                        Stream run events until it finishes
 
-With --wait or --stream, the command exits 1 if the run ends failed or
-cancelled.
+The command exits 1 if the run it prints has ended failed or cancelled.
 
 ${PAGINATION}
 `,
