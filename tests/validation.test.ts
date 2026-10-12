@@ -1,151 +1,123 @@
-import { describe, test, expect } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import {
-  isValidNumber,
-  parseNumber,
+  UsageError,
   isValidUrl,
+  parseEnum,
+  parseEnumList,
+  parseInteger,
+  parseJsonObject,
+  parseNumber,
   parseStringList,
-  isValidSearchType,
-  isValidAnswerModel,
-  isValidLivecrawl,
+  requireArg,
 } from '../src/utils/validation.js';
 
-describe('isValidNumber', () => {
-  test('returns true for valid numbers', () => {
-    expect(isValidNumber(42)).toBe(true);
-    expect(isValidNumber(3.14)).toBe(true);
-    expect(isValidNumber(0)).toBe(true);
-    expect(isValidNumber(-10)).toBe(true);
-  });
-
-  test('returns true for numeric strings', () => {
-    expect(isValidNumber('42')).toBe(true);
-    expect(isValidNumber('3.14')).toBe(true);
-    expect(isValidNumber('0')).toBe(true);
-    expect(isValidNumber('-10')).toBe(true);
-  });
-
-  test('returns false for invalid values', () => {
-    expect(isValidNumber('abc')).toBe(false);
-    expect(isValidNumber('')).toBe(false);
-    expect(isValidNumber(null)).toBe(false);
-    expect(isValidNumber(undefined)).toBe(false);
-    expect(isValidNumber({})).toBe(false);
-    expect(isValidNumber([])).toBe(false);
-    expect(isValidNumber(NaN)).toBe(false);
-  });
-});
-
 describe('parseNumber', () => {
-  test('parses valid numbers', () => {
-    expect(parseNumber(42)).toBe(42);
-    expect(parseNumber('42')).toBe(42);
-    expect(parseNumber('3.14')).toBe(3.14);
+  test('parses numeric strings', () => {
+    expect(parseNumber('n', '42')).toBe(42);
+    expect(parseNumber('n', '-1')).toBe(-1);
+    expect(parseNumber('n', '2.5')).toBe(2.5);
   });
 
-  test('returns undefined for invalid values', () => {
-    expect(parseNumber('abc')).toBeUndefined();
-    expect(parseNumber('')).toBeUndefined();
-    expect(parseNumber(null)).toBeUndefined();
-    expect(parseNumber(undefined)).toBeUndefined();
-    expect(parseNumber({})).toBeUndefined();
+  test('returns undefined when the flag is absent', () => {
+    expect(parseNumber('n', undefined)).toBeUndefined();
+  });
+
+  test('rejects non-numeric input instead of dropping it', () => {
+    expect(() => parseNumber('num-results', 'ten')).toThrow(
+      '--num-results must be a number, got "ten"'
+    );
+    expect(() => parseNumber('num-results', ' ')).toThrow(UsageError);
   });
 });
 
-describe('isValidUrl', () => {
-  test('returns true for valid HTTP/HTTPS URLs', () => {
-    expect(isValidUrl('https://example.com')).toBe(true);
-    expect(isValidUrl('http://localhost:3000')).toBe(true);
-    expect(isValidUrl('https://example.com/path?query=value')).toBe(true);
-  });
-
-  test('returns false for non-HTTP/HTTPS URLs', () => {
-    expect(isValidUrl('ftp://files.example.com')).toBe(false);
-    expect(isValidUrl('file:///path/to/file')).toBe(false);
-  });
-
-  test('returns false for invalid URLs', () => {
-    expect(isValidUrl('not-a-url')).toBe(false);
-    expect(isValidUrl('')).toBe(false);
-    expect(isValidUrl('example.com')).toBe(false);
-    expect(isValidUrl('/path/to/resource')).toBe(false);
+describe('parseInteger', () => {
+  test('accepts integers and rejects fractions', () => {
+    expect(parseInteger('limit', '10')).toBe(10);
+    expect(() => parseInteger('limit', '1.5')).toThrow(
+      '--limit must be an integer'
+    );
   });
 });
 
 describe('parseStringList', () => {
-  test('parses comma-separated strings', () => {
-    expect(parseStringList('a,b,c')).toEqual(['a', 'b', 'c']);
-    expect(parseStringList('  a  ,  b  ,  c  ')).toEqual(['a', 'b', 'c']);
+  test('splits, trims, and drops empty entries', () => {
+    expect(parseStringList('a.com, b.com,,')).toEqual(['a.com', 'b.com']);
   });
 
-  test('handles single values', () => {
-    expect(parseStringList('single')).toEqual(['single']);
-  });
-
-  test('filters empty strings', () => {
-    expect(parseStringList('a,,b,,c')).toEqual(['a', 'b', 'c']);
-    expect(parseStringList(',,,')).toEqual([]);
-  });
-
-  test('returns undefined for non-strings', () => {
-    expect(parseStringList(123)).toBeUndefined();
-    expect(parseStringList(null)).toBeUndefined();
+  test('returns undefined for absent or empty input', () => {
     expect(parseStringList(undefined)).toBeUndefined();
-    expect(parseStringList(['a', 'b'])).toBeUndefined();
+    expect(parseStringList(' , ')).toBeUndefined();
   });
 });
 
-describe('isValidSearchType', () => {
-  test('accepts non-deep search types', () => {
-    for (const type of [
-      'auto',
-      'fast',
-      'instant',
-      'keyword',
-      'neural',
-      'hybrid',
-    ]) {
-      expect(isValidSearchType(type)).toBe(true);
+describe('parseEnum', () => {
+  const allowed = ['auto', 'fast'] as const;
+
+  test('accepts allowed values', () => {
+    expect(parseEnum('type', 'fast', allowed)).toBe('fast');
+    expect(parseEnum('type', undefined, allowed)).toBeUndefined();
+  });
+
+  test('lists allowed values on rejection', () => {
+    expect(() => parseEnum('type', 'neural', allowed)).toThrow(
+      '--type must be one of: auto, fast'
+    );
+  });
+
+  test('parseEnumList validates every item', () => {
+    expect(parseEnumList('s', 'body,footer', ['body', 'footer'])).toEqual([
+      'body',
+      'footer',
+    ]);
+    expect(() => parseEnumList('s', 'body,nav', ['body'])).toThrow(
+      '--s must be one of: body'
+    );
+  });
+});
+
+describe('parseJsonObject', () => {
+  test('parses inline JSON objects', async () => {
+    expect(await parseJsonObject('schema', '{"type":"text"}')).toEqual({
+      type: 'text',
+    });
+  });
+
+  test('reads @file references', async () => {
+    const path = `${import.meta.dir}/.tmp-schema.json`;
+    await Bun.write(path, '{"type":"object"}');
+    try {
+      expect(await parseJsonObject('schema', `@${path}`)).toEqual({
+        type: 'object',
+      });
+    } finally {
+      await Bun.file(path).delete();
     }
   });
 
-  test('accepts deep search variants', () => {
-    expect(isValidSearchType('deep-lite')).toBe(true);
-    expect(isValidSearchType('deep')).toBe(true);
-    expect(isValidSearchType('deep-reasoning')).toBe(true);
-  });
-
-  test('rejects unknown types', () => {
-    expect(isValidSearchType('magic')).toBe(false);
-    expect(isValidSearchType('')).toBe(false);
-    expect(isValidSearchType(undefined)).toBe(false);
+  test('rejects invalid JSON and non-objects', async () => {
+    expect(parseJsonObject('schema', '{nope')).rejects.toThrow(
+      '--schema must be valid JSON or @file'
+    );
+    expect(parseJsonObject('schema', '[1]')).rejects.toThrow(
+      '--schema must be a JSON object'
+    );
   });
 });
 
-describe('isValidAnswerModel', () => {
-  test('accepts exa', () => {
-    expect(isValidAnswerModel('exa')).toBe(true);
-  });
-
-  test('rejects deprecated exa-pro', () => {
-    expect(isValidAnswerModel('exa-pro')).toBe(false);
-  });
-
-  test('rejects unknown models', () => {
-    expect(isValidAnswerModel('gpt')).toBe(false);
-    expect(isValidAnswerModel(undefined)).toBe(false);
+describe('isValidUrl', () => {
+  test('accepts only http and https URLs', () => {
+    expect(isValidUrl('https://example.com/a?b=c')).toBe(true);
+    expect(isValidUrl('http://localhost:3000')).toBe(true);
+    expect(isValidUrl('ftp://example.com')).toBe(false);
+    expect(isValidUrl('not-a-url')).toBe(false);
   });
 });
 
-describe('isValidLivecrawl', () => {
-  test('accepts valid livecrawl modes', () => {
-    for (const mode of ['never', 'fallback', 'always', 'auto', 'preferred']) {
-      expect(isValidLivecrawl(mode)).toBe(true);
-    }
-  });
-
-  test('rejects unknown modes', () => {
-    expect(isValidLivecrawl('sometimes')).toBe(false);
-    expect(isValidLivecrawl('')).toBe(false);
-    expect(isValidLivecrawl(undefined)).toBe(false);
+describe('requireArg', () => {
+  test('returns the value or throws a usage hint', () => {
+    expect(requireArg('x', 'search <query>')).toBe('x');
+    expect(() => requireArg('', 'search <query>')).toThrow(
+      'Usage: exacli search <query>'
+    );
   });
 });

@@ -1,48 +1,41 @@
 import type { ExaClient } from '../client.js';
-import * as format from '../formatters/markdown.js';
-import type { SimilarCommandArgs } from './types.js';
+import { formatSearchResults } from '../formatters/markdown.js';
+import { printOutput } from '../utils/commands.js';
 import {
-  hasContentOptions,
-  applyContentOptions,
-  runCommand,
-} from '../utils/commands.js';
-import { parseNumber } from '../utils/validation.js';
+  betaHeaders,
+  buildContents,
+  buildResultFilters,
+  compact,
+} from '../utils/options.js';
+import { UsageError, isValidUrl, requireArg } from '../utils/validation.js';
+import type { CliArgs, SearchResponse } from './types.js';
 
+/** /findSimilar is deprecated by Exa but still served. */
 export async function similar(
   client: ExaClient,
-  url: string,
-  args: SimilarCommandArgs
-) {
-  await runCommand(async () => {
-    const options = buildSimilarOptions(args);
-
-    const response = hasContentOptions(args)
-      ? await client.findSimilarAndContents(url, options)
-      : await client.findSimilar(url, options);
-
-    console.log(
-      format.formatSearchResults(response, { json: args.json === true })
+  positionals: string[],
+  args: CliArgs
+): Promise<void> {
+  const url = requireArg(positionals[0], 'similar <url>');
+  if (!isValidUrl(url)) {
+    throw new UsageError(
+      `Invalid URL "${url}". URLs must use HTTP or HTTPS protocol.`
     );
-  });
-}
-
-function buildSimilarOptions(args: SimilarCommandArgs) {
-  const options: Record<string, unknown> = {};
-
-  const numResults = parseNumber(args['num-results']);
-  if (numResults !== undefined) {
-    options.numResults = numResults;
   }
+  const { contents, betas } = await buildContents(args);
 
-  if (args['exclude-source-domain'] === true) {
-    options.excludeSourceDomain = true;
-  }
-
-  if (args.category) {
-    options.category = args.category;
-  }
-
-  applyContentOptions(options, args);
-
-  return options;
+  const response = await client.request<SearchResponse>(
+    'POST',
+    '/findSimilar',
+    {
+      body: compact({
+        url,
+        ...buildResultFilters(args),
+        excludeSourceDomain: args['exclude-source-domain'] || undefined,
+        contents,
+      }),
+      headers: betaHeaders(betas),
+    }
+  );
+  printOutput(response, args, formatSearchResults);
 }

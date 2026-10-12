@@ -1,208 +1,57 @@
 # Exacli
 
-> A CLI tool for the Exa AI search API. Search the web semantically, extract content from URLs, get AI-powered answers with citations, and conduct automated research from your terminal.
+> A CLI for the Exa AI API. Search the web, extract page contents, get cited answers, run Exa Agent research jobs, schedule search monitors, and submit request batches from your terminal.
 
 ## Overview
 
-Exacli is a command-line interface for the Exa AI search API. It provides commands for semantic web search, content extraction, AI-powered Q&A, and automated research tasks. Built with Bun and TypeScript, it outputs formatted markdown by default with JSON support for scripting.
+Exacli calls the Exa REST API directly (https://exa.ai/docs/exa-spec.yaml). It prints markdown by default and a `{"ok":true,"data":...}` JSON envelope with `--json`. Every command has `--help`.
 
 ## Installation
 
 ```bash
-# Download binary from GitHub Releases
 curl -L https://github.com/SoftwareStartups/exacli/releases/latest/download/exacli-darwin-arm64 -o exacli
 chmod +x exacli
 sudo mv exacli /usr/local/bin/
-
-# Or build from source
-git clone https://github.com/SoftwareStartups/exacli.git
-cd exacli
-bun install
-task build
-bun link
 ```
 
 ## Configuration
 
-Set your Exa API key as an environment variable:
-
 ```bash
-export EXA_API_KEY="your-api-key-here"
+exacli login                         # store the key in the OS keychain
+export EXA_API_KEY="your-api-key"    # or use the environment (takes precedence)
 ```
 
-Or pass it with each command using `--api-key`.
+Get a key at https://dashboard.exa.ai/api-keys
 
-Get your API key at: https://dashboard.exa.ai/api-keys
+## Commands
 
-## Quick Start
-
-```bash
-# Search the web
-exacli search "latest AI developments"
-
-# Search with content extraction
-exacli search "machine learning papers" --text --num-results 5
-
-# Get AI-powered answers
-exacli answer "What is quantum computing?"
-
-# Find similar pages
-exacli similar "https://example.com/article"
-
-# Conduct automated research
-exacli research "Latest SpaceX valuation" --poll
-```
-
-## Core Commands
-
-### Search
-Search the web using semantic search.
-
-```bash
-exacli search "query" [options]
-```
-
-**Options:**
-- `--num-results <n>`: Number of results (default: 10)
-- `--type <auto|fast|deep|instant>`: Search type
-- `--text`: Include full text content
-- `--highlights`: Include relevant highlights
-- `--summary`: Include AI-generated summary
-- `--category <category>`: Filter by category
-- `--include-domains <list>`: Comma-separated domains to include
-- `--exclude-domains <list>`: Comma-separated domains to exclude
-- `--start-date <date>`: Start date (ISO format)
-- `--end-date <date>`: End date (ISO format)
-- `--autoprompt`: Use autoprompt to enhance query
-
-**Categories:** company, research paper, news, pdf, tweet, personal site, financial report, people
-
-### Contents
-Retrieve contents from specific URLs.
-
-```bash
-exacli contents <url...> [options]
-```
-
-**Options:**
-- `--text`: Include full text
-- `--highlights`: Include highlights
-- `--summary`: Include summary
-- `--max-age-hours <n>`: Maximum age of cached content
-
-### Similar
-Find pages similar to a given URL.
-
-```bash
-exacli similar <url> [options]
-```
-
-**Options:**
-- `--num-results <n>`: Number of results
-- `--exclude-source-domain`: Exclude same domain
-- `--text`, `--highlights`, `--summary`: Content options
-- `--category <category>`: Filter by category
-
-### Answer
-Get AI-powered answers with citations.
-
-```bash
-exacli answer "query" [options]
-```
-
-**Options:**
-- `--text`: Include source text in citations
-- `--model <exa|exa-pro>`: Model to use (default: exa)
-- `--stream`: Stream response in real-time
-- `--system-prompt <text>`: Custom system prompt
-
-### Research
-Create automated research tasks.
-
-```bash
-exacli research "instructions" [options]
-```
-
-**Options:**
-- `--model <fast|regular|pro>`: Research model
-- `--poll`: Poll until completion
-- `--poll-interval <ms>`: Polling interval (default: 1000)
-- `--timeout <ms>`: Timeout (default: 600000)
-
-### Research Status
-Check research task status.
-
-```bash
-exacli research-status <task-id>
-```
-
-### Research List
-List all research tasks.
-
-```bash
-exacli research-list [options]
-```
-
-**Options:**
-- `--limit <n>`: Number of tasks
-- `--cursor <token>`: Pagination cursor
-
-## Global Options
-
-- `--api-key <key>`: Exa API key
-- `--json`: Output raw JSON instead of markdown
-- `-h, --help`: Show help
+- `exacli search <query>`: web search. Types `auto`, `fast`, `instant`, `deep-lite`, `deep`, `deep-reasoning`. Filters `--category`, `--include-domains`, `--exclude-domains`, `--start-date`, `--end-date`. Synthesis via `--output-schema` (text or object, with grounding), `--objective`, `--system-prompt`, `--stream`.
+- `exacli contents <url...>`: page contents. `--text`, `--highlights`, `--summary`, `--max-age-hours`, `--snapshot-as-of`, `--text-verbosity`, section filters, subpages, extras.
+- `exacli answer <query>`: cited answer. `--model exa|exa-pro|exa-research|exa-fast`, `--output-schema`, `--stream`.
+- `exacli similar <url>`: pages similar to a URL (deprecated by Exa).
+- `exacli agent run|get|list|cancel|stop|delete|events`: Exa Agent runs with `--effort`, `--output-schema`, `--input`, `--data-sources`, `--max-cost`, `--max-duration`, `--wait`, `--stream`.
+- `exacli monitor create|list|get|update|delete|trigger|runs|run|batch`: scheduled searches that post new results to a webhook.
+- `exacli batch create|list|get|cancel|delete|results`: async batches of `/search` and `/agent/runs` requests (beta).
+- `exacli login` / `exacli logout`: manage the stored API key.
 
 ## Examples
 
-### Semantic Search
 ```bash
-exacli search "hottest AI startups 2024"
-exacli search "transformer architecture" --type deep --text --highlights
-exacli search "AI acquisitions" --category news --start-date 2024-01-01
-exacli search "research" --include-domains "arxiv.org,openai.com"
-```
-
-### Content Extraction
-```bash
-exacli contents "https://arxiv.org/abs/2304.15004" --text
-exacli contents "https://example.com/1" "https://example.com/2" --highlights --summary
-```
-
-### AI Q&A
-```bash
-exacli answer "What is neural machine translation?"
-exacli answer "Explain large language models" --stream
+exacli search "hottest AI startups" --num-results 5 --highlights
+exacli search "Who founded Exa?" --type deep --output-schema '{"type":"text"}'
+exacli contents "https://arxiv.org/abs/2304.15004" --text --max-characters 5000
 exacli answer "Explain recursion" --system-prompt "Explain like I'm 5"
-```
-
-### Research Workflow
-```bash
-exacli research "SpaceX valuation and funding history" --poll
-exacli research-status "task-id"
-exacli research-list --limit 10
-```
-
-## Development
-
-```bash
-bun install        # Install dependencies
-task build         # Compile TypeScript
-task test          # Run tests
-task ci            # Full CI pipeline
-task compile       # Build binary
+exacli agent run "List 20 robotics startups in Europe" --effort medium
+exacli agent get agent_run_123 --json | jq '.data.output'
+exacli monitor create "AI chip funding" --period 1d --webhook-url https://hooks.example.com/exa
 ```
 
 ## Documentation
 
 - [README](https://github.com/SoftwareStartups/exacli#readme): Full documentation
 - [Exa API Docs](https://exa.ai/docs): Official Exa API documentation
+- [Exa OpenAPI spec](https://exa.ai/docs/exa-spec.yaml): Request and response schemas
 - [Issues](https://github.com/SoftwareStartups/exacli/issues): Report bugs or request features
-
-## Optional
-
-- [API Reference](https://exa.ai/docs/rest-api): Complete API documentation
-- [TypeScript SDK](https://github.com/exa-labs/exa-js): Official SDK used by this CLI
 
 ---
 
