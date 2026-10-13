@@ -6,24 +6,41 @@ import { ExaApiError } from '../client.js';
 import type { CliArgs } from '../commands/types.js';
 import { UsageError } from './validation.js';
 
+// C0/C1 control characters except tab and newline, plus bidi overrides.
+const CONTROL_CHARS =
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: matching them is the point
+  /[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g;
+
+/**
+ * Strips terminal control sequences from text that may come from crawled
+ * pages, so a page cannot inject escape codes into the user's terminal.
+ */
+export function sanitize(text: string): string {
+  return text.replace(CONTROL_CHARS, '');
+}
+
+/** Prints human-readable output with control characters removed. */
+export function printText(text: string): void {
+  console.log(sanitize(text));
+}
+
 export function printOutput<T>(
   data: T,
   args: CliArgs,
   toMarkdown: (data: T) => string
 ): void {
-  console.log(
-    args.json ? JSON.stringify({ ok: true, data }) : toMarkdown(data)
-  );
+  if (args.json) console.log(JSON.stringify({ ok: true, data }));
+  else printText(toMarkdown(data));
 }
 
-/** Prints one streamed item: an NDJSON envelope line in --json mode. */
-export function printStreamItem(data: unknown, args: CliArgs): void {
-  if (args.json) console.log(JSON.stringify({ ok: true, data }));
+/** Prints one streamed item as an NDJSON envelope line. */
+export function printStreamItem(data: unknown): void {
+  console.log(JSON.stringify({ ok: true, data }));
 }
 
 /** Progress and status messages go to stderr so stdout stays data-only. */
 export function logStatus(message: string): void {
-  console.error(message);
+  console.error(sanitize(message));
 }
 
 function errorCode(error: unknown): string {
@@ -57,7 +74,7 @@ export async function runCommand(
         JSON.stringify({ ok: false, error: message, code: errorCode(error) })
       );
     } else {
-      console.error(`Error: ${message}`);
+      console.error(`Error: ${sanitize(message)}`);
     }
     process.exit(1);
   }

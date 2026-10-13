@@ -1,15 +1,18 @@
 import { describe, expect, test } from 'bun:test';
 import {
-  UsageError,
   isValidUrl,
   parseEnum,
   parseEnumList,
   parseInteger,
   parseJsonObject,
+  parseMetadata,
   parseNumber,
   parseStringList,
+  pathSegment,
   requireArg,
+  UsageError,
 } from '../src/utils/validation.js';
+import { withTempFile } from './helpers/temp-file.js';
 
 describe('parseNumber', () => {
   test('parses numeric strings', () => {
@@ -83,15 +86,17 @@ describe('parseJsonObject', () => {
   });
 
   test('reads @file references', async () => {
-    const path = `${import.meta.dir}/.tmp-schema.json`;
-    await Bun.write(path, '{"type":"object"}');
-    try {
+    await withTempFile('.json', '{"type":"object"}', async (path) => {
       expect(await parseJsonObject('schema', `@${path}`)).toEqual({
         type: 'object',
       });
-    } finally {
-      await Bun.file(path).delete();
-    }
+    });
+  });
+
+  test('reports a missing @file as a usage error naming the flag', async () => {
+    await expect(
+      parseJsonObject('schema', '@/does/not/exist.json')
+    ).rejects.toThrow('--schema: cannot read file "/does/not/exist.json"');
   });
 
   test('rejects invalid JSON and non-objects', async () => {
@@ -119,5 +124,45 @@ describe('requireArg', () => {
     expect(() => requireArg('', 'search <query>')).toThrow(
       'Usage: exacli search <query>'
     );
+  });
+});
+
+describe('parseNumber edge cases', () => {
+  test('accepts decimal and exponent notation', () => {
+    expect(parseNumber('n', '1e3')).toBe(1000);
+    expect(parseNumber('n', '-2.5')).toBe(-2.5);
+    expect(parseNumber('n', '.5')).toBe(0.5);
+  });
+
+  test('rejects values that are not finite decimals', () => {
+    for (const value of ['Infinity', '-Infinity', '1e400', '0x10', '1_000']) {
+      expect(() => parseNumber('n', value)).toThrow(UsageError);
+    }
+  });
+});
+
+describe('parseMetadata', () => {
+  test('accepts string values', async () => {
+    expect(await parseMetadata('metadata', '{"team":"growth"}')).toEqual({
+      team: 'growth',
+    });
+  });
+
+  test('rejects non-string values, which the API refuses', async () => {
+    await expect(parseMetadata('metadata', '{"priority":1}')).rejects.toThrow(
+      '--metadata values must be strings (key "priority")'
+    );
+  });
+});
+
+describe('pathSegment', () => {
+  test('encodes IDs', () => {
+    expect(pathSegment('a/b c')).toBe('a%2Fb%20c');
+  });
+
+  test('rejects IDs that would change the request path', () => {
+    for (const id of ['', '.', '..']) {
+      expect(() => pathSegment(id)).toThrow(UsageError);
+    }
   });
 });

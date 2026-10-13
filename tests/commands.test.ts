@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
+import { ExaApiError, RequestTimeoutError } from '../src/client.js';
 import * as agent from '../src/commands/agent.js';
 import { answer } from '../src/commands/answer.js';
 import * as batch from '../src/commands/batch.js';
@@ -10,11 +11,12 @@ import {
   BATCHES_BETA,
   DYNAMIC_HIGHLIGHTS_BETA,
 } from '../src/commands/types.js';
-import { ExaApiError } from '../src/client.js';
-import { runCommand } from '../src/utils/commands.js';
+import { runCommand, sanitize } from '../src/utils/commands.js';
 import { UsageError } from '../src/utils/validation.js';
+import { withFetch } from './helpers/fetch-stub.js';
 import { mockClient, requestCall } from './helpers/mock-client.js';
 import { stubProcessExit } from './helpers/process-exit.js';
+import { withTempFile } from './helpers/temp-file.js';
 
 let logSpy: ReturnType<typeof spyOn<Console, 'log'>>;
 let errorSpy: ReturnType<typeof spyOn<Console, 'error'>>;
@@ -151,6 +153,7 @@ describe('search', () => {
       {
         data: '{"type":"grounding","grounding":[{"field":"x","confidence":"high","citations":[{"url":"https://b.com","title":"B"}]}]}',
       },
+      { data: '[DONE]' },
     ]);
     await search(m.client, ['q'], {
       stream: true,
@@ -340,11 +343,13 @@ describe('agent', () => {
       status: statuses.shift(),
     }));
 
+    const sleep = spyOn(Bun, 'sleep').mockResolvedValue(undefined);
     await agent.agentRun(m.client, ['q'], {
       wait: true,
-      'poll-interval': '1',
+      'poll-interval': '1000',
       json: true,
     });
+    sleep.mockRestore();
 
     expect(m.request).toHaveBeenCalledTimes(3);
     expect(requestCall(m, 1).slice(0, 2)).toEqual(['GET', '/agent/runs/r1']);
@@ -356,13 +361,17 @@ describe('agent', () => {
 
   test('run --wait gives up after the timeout', async () => {
     const m = mockClient(() => ({ id: 'r1', status: 'running' }));
+    const sleep = spyOn(Bun, 'sleep').mockImplementation(
+      () => new Promise((resolve) => setTimeout(resolve, 2))
+    );
     await expect(
       agent.agentRun(m.client, ['q'], {
         wait: true,
-        'poll-interval': '1',
-        timeout: '0',
+        'poll-interval': '1000',
+        timeout: '1',
       })
     ).rejects.toThrow('Timed out waiting for run r1');
+    sleep.mockRestore();
   });
 
   test('run --stream prints the terminal run', async () => {
@@ -562,6 +571,8 @@ describe('monitor', () => {
 });
 
 describe('batch', () => {
+  const completedBatch = (resultsUrl = 'https://files.example.com/b1.jsonl') =>
+    mockClient(() => ({ id: 'b1', status: 'completed', resultsUrl }));
   const requests = [
     { customId: 'a', method: 'POST', url: '/search', body: { query: 'x' } },
   ];
@@ -577,14 +588,10 @@ describe('batch', () => {
   });
 
   test('create posts requests from a file with the beta header', async () => {
-    const path = `${import.meta.dir}/.tmp-batch.jsonl`;
-    await Bun.write(path, JSON.stringify(requests[0]));
     const m = mockClient(() => ({ id: 'b1', status: 'in_progress' }));
-    try {
-      await batch.batchCreate(m.client, [path], { metadata: '{"job":"1"}' });
-    } finally {
-      await Bun.file(path).delete();
-    }
+    await withTempFile('.jsonl', JSON.stringify(requests[0]), (path) =>
+      batch.batchCreate(m.client, [path], { metadata: '{"job":"1"}' })
+    );
 
     expect(requestCall(m)).toEqual([
       'POST',
@@ -610,21 +617,10 @@ describe('batch', () => {
   });
 
   test('results downloads and parses the JSONL file', async () => {
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = (async () =>
-      new Response(
-        '{"customId":"a"}\n{"customId":"b"}\n'
-      )) as unknown as typeof fetch;
-    const m = mockClient(() => ({
-      id: 'b1',
-      status: 'completed',
-      resultsUrl: 'https://files.example.com/b1.jsonl',
-    }));
-    try {
-      await batch.batchResults(m.client, ['b1'], { json: true });
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+    await withFetch(
+      async () => new Response('{"customId":"a"}\n{"customId":"b"}\n'),
+      () => batch.batchResults(completedBatch().client, ['b1'], { json: true })
+    );
     expect(printedJson()).toEqual({
       ok: true,
       data: [{ customId: 'a' }, { customId: 'b' }],
@@ -681,5 +677,302 @@ describe('runCommand', () => {
       restore();
     }
     expect(errorSpy).toHaveBeenCalledWith('Error: bad flag');
+  });
+});
+
+describe('agent exit codes, retries, and streams', () => {
+  afterEach(() => {
+    process.exitCode = 0;
+  });
+
+  test('run --wait exits 1 when the run fails', async () => {
+    const m = mockClient((method) => ({
+      id: 'r1',
+      status: method === 'POST' ? 'running' : 'failed',
+    }));
+    const sleep = spyOn(Bun, 'sleep').mockResolvedValue(undefined);
+    await agent.agentRun(m.client, ['q'], { wait: true, json: true });
+    sleep.mockRestore();
+    expect(printedJson()).toEqual({
+      ok: true,
+      data: { id: 'r1', status: 'failed' },
+    });
+    expect(process.exitCode).toBe(1);
+  });
+
+  test('run --wait retries polls that hit transient errors', async () => {
+    let polls = 0;
+    const m = mockClient((method) => {
+      if (method === 'POST') return { id: 'r1', status: 'running' };
+      polls++;
+      if (polls === 1) throw new ExaApiError('busy', 503);
+      return { id: 'r1', status: 'completed' };
+    });
+    const sleep = spyOn(Bun, 'sleep').mockResolvedValue(undefined);
+    await agent.agentRun(m.client, ['q'], { wait: true, json: true });
+    sleep.mockRestore();
+    expect(polls).toBe(2);
+    expect(process.exitCode).toBe(0);
+  });
+
+  test('run --wait retries timed-out polls and reports the last failure', async () => {
+    const m = mockClient((method) => {
+      if (method === 'POST') return { id: 'r1', status: 'running' };
+      throw new RequestTimeoutError();
+    });
+    const sleep = spyOn(Bun, 'sleep').mockImplementation(
+      () => new Promise((resolve) => setTimeout(resolve, 2))
+    );
+    await expect(
+      agent.agentRun(m.client, ['q'], { wait: true, timeout: '20' })
+    ).rejects.toThrow('last poll failed: Request timed out after 300 seconds');
+    sleep.mockRestore();
+    expect(m.request.mock.calls.length).toBeGreaterThan(2);
+  });
+
+  test('run --wait does not retry client errors', async () => {
+    const m = mockClient((method) => {
+      if (method === 'POST') return { id: 'r1', status: 'running' };
+      throw new ExaApiError('not found', 404);
+    });
+    const sleep = spyOn(Bun, 'sleep').mockResolvedValue(undefined);
+    await expect(
+      agent.agentRun(m.client, ['q'], { wait: true })
+    ).rejects.toThrow('not found');
+    sleep.mockRestore();
+  });
+
+  test('run --wait rejects a poll interval under one second', async () => {
+    const m = mockClient(() => ({ id: 'r1', status: 'running' }));
+    await expect(
+      agent.agentRun(m.client, ['q'], { wait: true, 'poll-interval': '5' })
+    ).rejects.toThrow('--poll-interval must be at least 1000');
+  });
+
+  test('run --stream --json prints one envelope per event and exits 1 on cancel', async () => {
+    const m = mockClient(undefined, [
+      {
+        event: 'agent_run.created',
+        id: '1',
+        data: '{"id":"r1","status":"queued"}',
+      },
+      {
+        id: '2',
+        data: '{"event":"agent_run.cancelled","data":{"id":"r1","status":"cancelled"}}',
+      },
+    ]);
+    await agent.agentRun(m.client, ['q'], { stream: true, json: true });
+    const lines = logSpy.mock.calls.map((call) => JSON.parse(String(call[0])));
+    expect(lines).toEqual([
+      {
+        ok: true,
+        data: {
+          event: 'agent_run.created',
+          id: '1',
+          data: { id: 'r1', status: 'queued' },
+        },
+      },
+      {
+        ok: true,
+        data: {
+          event: 'agent_run.cancelled',
+          id: '2',
+          data: { id: 'r1', status: 'cancelled' },
+        },
+      },
+    ]);
+    expect(process.exitCode).toBe(1);
+  });
+
+  test('run --stream fails when the stream ends before a terminal event', async () => {
+    const m = mockClient(undefined, [
+      { event: 'agent_run.started', data: '{"id":"r1","status":"running"}' },
+    ]);
+    await expect(
+      agent.agentRun(m.client, ['q'], { stream: true })
+    ).rejects.toThrow('Stream ended before the run finished');
+  });
+
+  test('rejects dot-segment run IDs', async () => {
+    const m = mockClient();
+    await expect(agent.agentCancel(m.client, ['..'], {})).rejects.toThrow(
+      'Invalid ID ".."'
+    );
+    expect(m.request).not.toHaveBeenCalled();
+  });
+});
+
+describe('completion streams', () => {
+  const schema = { stream: true, 'output-schema': '{"type":"text"}' };
+
+  test('search renders the top-level delta when choices are absent', async () => {
+    const m = mockClient(undefined, [
+      { data: '{"type":"text-delta","delta":"Hello"}' },
+      { data: '[DONE]' },
+    ]);
+    await search(m.client, ['q'], schema);
+    expect(writeSpy).toHaveBeenCalledWith('Hello');
+  });
+
+  test('ignores a non-string delta', async () => {
+    const m = mockClient(undefined, [
+      { data: '{"type":"text-delta","delta":{"a":1}}' },
+      { data: '[DONE]' },
+    ]);
+    await search(m.client, ['q'], schema);
+    expect(writeSpy).not.toHaveBeenCalledWith(expect.anything());
+  });
+
+  test('fails when the stream ends without [DONE]', async () => {
+    const m = mockClient(undefined, [
+      { data: '{"type":"text-delta","delta":"partial"}' },
+    ]);
+    await expect(search(m.client, ['q'], schema)).rejects.toThrow(
+      'Stream ended before completion'
+    );
+  });
+
+  test('logs stream resets and prints each citation once', async () => {
+    const citation = '{"url":"https://a.com","title":"A","id":"1"}';
+    const m = mockClient(undefined, [
+      {
+        data: `{"type":"text-delta","delta":"x","choices":[{"delta":{"citations":[${citation}]}}]}`,
+      },
+      { data: '{"type":"stream-reset"}' },
+      {
+        data: `{"type":"text-delta","delta":"y","choices":[{"delta":{"citations":[${citation}]}}]}`,
+      },
+      { data: '[DONE]' },
+    ]);
+    await search(m.client, ['q'], schema);
+    expect(errorSpy).toHaveBeenCalledWith('[stream restarted]');
+    const printed = String(logSpy.mock.calls.at(-1)?.[0]);
+    expect(printed.match(/https:\/\/a\.com/g)).toHaveLength(1);
+  });
+
+  test('strips terminal escape sequences from streamed text', async () => {
+    const m = mockClient(undefined, [
+      {
+        data: '{"type":"text-delta","delta":"safe\\u001b]52;c;ZXZpbA==\\u0007"}',
+      },
+      { data: '[DONE]' },
+    ]);
+    await search(m.client, ['q'], schema);
+    expect(writeSpy).toHaveBeenCalledWith('safe]52;c;ZXZpbA==');
+  });
+});
+
+describe('terminal output and usage errors', () => {
+  test('sanitize removes bidi overrides but keeps accented text', () => {
+    expect(sanitize('caf\u00e9 \u202eevil\u2066')).toBe('caf\u00e9 evil');
+  });
+
+  test('sanitize removes control characters but keeps newlines and tabs', () => {
+    expect(sanitize('a\u001b[31mred\u0007\tb\nc\u009b')).toBe('a[31mred\tb\nc');
+  });
+
+  test('unknown commands print a JSON envelope with --json', () => {
+    const result = Bun.spawnSync(['bun', 'src/index.ts', 'nope', '--json'], {
+      cwd: `${import.meta.dir}/..`,
+      env: { ...process.env, EXA_API_KEY: 'x' },
+    });
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout.toString())).toEqual({
+      ok: false,
+      error: 'Unknown command "nope"',
+      code: 'USAGE_ERROR',
+    });
+  });
+});
+
+describe('monitor validation', () => {
+  test('batch treats empty metadata as no filter', async () => {
+    const m = mockClient();
+    await expect(
+      monitor.monitorBatch(m.client, ['delete'], {
+        metadata: '{}',
+        execute: true,
+      })
+    ).rejects.toThrow('monitor batch needs at least one filter');
+    expect(m.request).not.toHaveBeenCalled();
+  });
+
+  test('batch names the positional action in its error', async () => {
+    await expect(
+      monitor.monitorBatch(mockClient().client, ['archive'], { name: 'x' })
+    ).rejects.toThrow('Unknown batch action "archive"');
+  });
+
+  test('update rejects --period with --remove-schedule', async () => {
+    const m = mockClient();
+    await expect(
+      monitor.monitorUpdate(m.client, ['m1'], {
+        period: '1d',
+        'remove-schedule': true,
+      })
+    ).rejects.toThrow('not both');
+    expect(m.request).not.toHaveBeenCalled();
+  });
+
+  test('create rejects content options monitors do not support', async () => {
+    for (const flag of ['summary-schema', 'snapshot-as-of'] as const) {
+      await expect(
+        monitor.monitorCreate(mockClient().client, ['q'], {
+          'webhook-url': 'https://hooks.example.com',
+          [flag]: flag === 'summary-schema' ? '{}' : '2026-01-01',
+        })
+      ).rejects.toThrow(`--${flag} is not supported for monitors`);
+    }
+  });
+
+  test('list rejects non-string metadata values', async () => {
+    await expect(
+      monitor.monitorList(mockClient().client, [], {
+        metadata: '{"a":{"b":1}}',
+      })
+    ).rejects.toThrow('--metadata values must be strings');
+  });
+});
+
+describe('batch results download', () => {
+  const run = (resultsUrl: string, args = {}) =>
+    batch.batchResults(
+      mockClient(() => ({ id: 'b1', status: 'completed', resultsUrl })).client,
+      ['b1'],
+      args
+    );
+
+  test('refuses results URLs that are not https', async () => {
+    await expect(run('file:///etc/hosts')).rejects.toThrow(
+      'Refusing to fetch non-https URL'
+    );
+  });
+
+  test('reports failed downloads', async () => {
+    await withFetch(
+      async () => new Response('denied', { status: 403 }),
+      () =>
+        expect(run('https://files.example.com/b1.jsonl')).rejects.toThrow(
+          'Failed to download results (HTTP 403)'
+        )
+    );
+  });
+
+  test('prints the raw JSONL without parsing it in markdown mode', async () => {
+    await withFetch(
+      async () => new Response('{"customId":"a"}\nnot json\n'),
+      () => run('https://files.example.com/b1.jsonl')
+    );
+    expect(logSpy).toHaveBeenCalledWith('{"customId":"a"}\nnot json');
+  });
+
+  test('names the malformed line in --json mode', async () => {
+    await withFetch(
+      async () => new Response('{"customId":"a"}\nnot json\n'),
+      () =>
+        expect(
+          run('https://files.example.com/b1.jsonl', { json: true })
+        ).rejects.toThrow('Results line 2 is not valid JSON')
+    );
   });
 });

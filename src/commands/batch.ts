@@ -1,15 +1,17 @@
-import type { ExaClient } from '../client.js';
+import { type ExaClient, fetchExternal } from '../client.js';
 import {
   formatBatch,
   formatBatchList,
   formatSuccess,
 } from '../formatters/markdown.js';
-import { printOutput } from '../utils/commands.js';
+import { printOutput, printText } from '../utils/commands.js';
 import { compact, paginationQuery } from '../utils/options.js';
 import {
-  UsageError,
-  parseJsonObject,
+  parseMetadata,
+  pathSegment,
+  readTextFile,
   requireArg,
+  UsageError,
 } from '../utils/validation.js';
 import {
   BATCHES_BETA,
@@ -20,7 +22,7 @@ import {
 
 const headers = { 'Exa-Beta': BATCHES_BETA };
 const batchPath = (id: string, suffix = '') =>
-  `/batches/${encodeURIComponent(id)}${suffix}`;
+  `/batches/${pathSegment(id)}${suffix}`;
 
 /** Parses a JSON array or JSONL of `{customId, method, url, body}` requests. */
 export function parseBatchRequests(source: string): unknown[] {
@@ -48,12 +50,14 @@ export async function batchCreate(
 ): Promise<void> {
   const file = requireArg(positionals[0], 'batch create <file|->');
   const source =
-    file === '-' ? await Bun.stdin.text() : await Bun.file(file).text();
+    file === '-'
+      ? await Bun.stdin.text()
+      : await readTextFile('batch create', file);
 
   const batch = await client.request<Batch>('POST', '/batches', {
     body: compact({
       requests: parseBatchRequests(source),
-      metadata: await parseJsonObject('metadata', args.metadata),
+      metadata: await parseMetadata('metadata', args.metadata),
     }),
     headers,
   });
@@ -122,14 +126,24 @@ export async function batchResults(
       `Batch ${id} has no results yet (status: ${batch.status})`
     );
   }
-  const response = await fetch(batch.resultsUrl);
+  const response = await fetchExternal(batch.resultsUrl);
   if (!response.ok) {
     throw new Error(`Failed to download results (HTTP ${response.status})`);
   }
-  const jsonl = await response.text();
+  const jsonl = response.text;
+  if (!args.json) {
+    printText(jsonl.trimEnd());
+    return;
+  }
   const results = jsonl
     .split('\n')
     .filter((line) => line.trim() !== '')
-    .map((line) => JSON.parse(line) as unknown);
+    .map((line, index) => {
+      try {
+        return JSON.parse(line) as unknown;
+      } catch {
+        throw new Error(`Results line ${index + 1} is not valid JSON`);
+      }
+    });
   printOutput(results, args, () => jsonl.trimEnd());
 }

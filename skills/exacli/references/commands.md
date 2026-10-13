@@ -85,7 +85,7 @@ exacli agent delete <run-id>
 | `--system-prompt`, `--metadata`, `--user-id` | Guidance and bookkeeping |
 | `--wait [--poll-interval <ms>] [--timeout <ms>]` | Poll until finished |
 
-Run statuses: `queued`, `running`, `completed`, `failed`, `cancelled`. Stop reasons include `schema_satisfied`, `budget_reached`, `time_limit_reached`, `stopped`.
+Run statuses: `queued`, `running`, `completed`, `failed`, `cancelled`. Stop reasons include `schema_satisfied`, `budget_reached`, `time_limit_reached`, `stopped`. `agent run` exits 1 when the run it prints is `failed` or `cancelled`.
 
 Structured list example:
 
@@ -112,7 +112,7 @@ exacli monitor batch pause --name n --execute
 exacli monitor delete <id>
 ```
 
-The webhook secret is returned only by `create`. Webhook URLs must be public HTTPS. The minimum period is `1h`.
+The webhook secret is returned only by `create`. Webhook URLs must be public HTTPS. The minimum period is `1h`. Monitors accept the content options above except `--summary-schema` and `--snapshot-as-of`. `--metadata` values must be strings.
 
 ## websets (requires a Websets-enabled plan)
 
@@ -127,7 +127,7 @@ exacli webset preview --query "<q>" --with-items --json | jq '.data'
 exacli webset-search create <id> --query "<q>" --count 10 --behavior append
 exacli webset-enrichment create <id> --description "<what>" --format text|date|number|options|email|phone|url [--options a,b]
 exacli webset-monitor create <id> --cron "0 9 * * 1" --count 5 [--behavior append]
-exacli webset-import create file.csv --entity company [--identifier-column 0]
+exacli webset-import create file.csv --entity company [--identifier-column 0]   # first row is a header
 exacli webset-webhook create --webhook-url <url> --events webset.item.created,webset.idle
 exacli webset-event list --types webset.idle --json | jq '[.data.data[] | {id, type}]'
 exacli team --json | jq '.data'

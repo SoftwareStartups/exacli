@@ -3,14 +3,15 @@
  * stream OpenAI-style chat completion chunks with optional citations.
  */
 
-import type { ExaClient } from '../client.js';
-import type { CliArgs, Citation } from '../commands/types.js';
+import { type ExaClient, parseEventData } from '../client.js';
+import type { Citation, CliArgs } from '../commands/types.js';
 import { formatCitations } from '../formatters/markdown.js';
-import { logStatus, printStreamItem } from './commands.js';
+import { logStatus, printStreamItem, sanitize } from './commands.js';
 
 /** Union of the /answer and /search stream chunk shapes we render. */
 interface CompletionChunk {
   type?: string;
+  delta?: unknown;
   choices?: Array<{ delta?: { content?: string; citations?: Citation[] } }>;
   citations?: Citation[] | null;
   grounding?: Array<{ citations?: Citation[] }>;
@@ -43,17 +44,21 @@ export async function streamCompletion(
   args: CliArgs
 ): Promise<void> {
   const citations: Citation[] = [];
+  let done = false;
 
   for await (const event of client.stream(path, {
     body: { ...body, stream: true },
     headers,
   })) {
-    if (event.data === '[DONE]') break;
-    const chunk = JSON.parse(event.data) as CompletionChunk;
+    if (event.data === '[DONE]') {
+      done = true;
+      break;
+    }
+    const chunk = parseEventData(event.data) as CompletionChunk;
     const error = streamError(chunk);
     if (error) throw new Error(error);
     if (args.json) {
-      printStreamItem(chunk, args);
+      printStreamItem(chunk);
       continue;
     }
     if (chunk.type === 'stream-reset') {
@@ -61,8 +66,11 @@ export async function streamCompletion(
       process.stdout.write('\n\n');
       continue;
     }
-    const content = chunk.choices?.[0]?.delta?.content;
-    if (content) process.stdout.write(content);
+    // /search sends the text in `delta`; /answer only in `choices`.
+    const content = chunk.delta ?? chunk.choices?.[0]?.delta?.content;
+    if (typeof content === 'string' && content) {
+      process.stdout.write(sanitize(content));
+    }
     for (const citation of chunkCitations(chunk)) {
       if (!citations.some((c) => c.url === citation.url)) {
         citations.push(citation);
@@ -70,8 +78,9 @@ export async function streamCompletion(
     }
   }
 
+  if (!done) throw new Error('Stream ended before completion');
   if (!args.json) {
     console.log('\n');
-    if (citations.length > 0) console.log(formatCitations(citations));
+    if (citations.length > 0) console.log(sanitize(formatCitations(citations)));
   }
 }

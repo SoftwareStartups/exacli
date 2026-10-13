@@ -16,29 +16,38 @@ import {
   paginationQuery,
 } from '../utils/options.js';
 import {
-  UsageError,
   parseEnum,
   parseInteger,
   parseJsonObject,
+  parseMetadata,
   parseStringList,
+  pathSegment,
   requireArg,
+  UsageError,
 } from '../utils/validation.js';
 import {
   type CliArgs,
   type ListResponse,
   MONITOR_BATCH_ACTIONS,
   MONITOR_STATUSES,
+  MONITOR_UPDATE_STATUSES,
   type Monitor,
   type MonitorRun,
 } from './types.js';
 
 const monitorPath = (id: string, suffix = '') =>
-  `/monitors/${encodeURIComponent(id)}${suffix}`;
+  `/monitors/${pathSegment(id)}${suffix}`;
 
 async function buildSearch(
   query: string | undefined,
   args: CliArgs
 ): Promise<{ search?: Record<string, unknown>; betas: string[] }> {
+  // Monitor contents (SearchMonitorContents) lack these /contents options.
+  for (const flag of ['summary-schema', 'snapshot-as-of'] as const) {
+    if (args[flag] !== undefined) {
+      throw new UsageError(`--${flag} is not supported for monitors`);
+    }
+  }
   const { contents, betas } = await buildContents(args);
   const search = nonEmpty({
     query,
@@ -80,7 +89,7 @@ export async function monitorCreate(
         'output-schema',
         args['output-schema']
       ),
-      metadata: await parseJsonObject('metadata', args.metadata),
+      metadata: await parseMetadata('metadata', args.metadata),
       webhook: buildWebhook(args),
     }),
     headers: betaHeaders(betas),
@@ -100,7 +109,7 @@ export async function monitorUpdate(
   const { search, betas } = await buildSearch(args.query, args);
   const body = compact({
     name: args.name,
-    status: parseEnum('status', args.status, ['active', 'paused'] as const),
+    status: parseEnum('status', args.status, MONITOR_UPDATE_STATUSES),
     search,
     trigger: args['remove-schedule']
       ? null
@@ -108,7 +117,7 @@ export async function monitorUpdate(
         ? { type: 'interval', period: args.period }
         : undefined,
     outputSchema: await parseJsonObject('output-schema', args['output-schema']),
-    metadata: await parseJsonObject('metadata', args.metadata),
+    metadata: await parseMetadata('metadata', args.metadata),
     webhook: buildWebhook(args),
   });
   if (Object.keys(body).length === 0) {
@@ -126,7 +135,7 @@ export async function monitorUpdate(
 async function metadataQuery(
   args: CliArgs
 ): Promise<Record<string, QueryValue>> {
-  const metadata = (await parseJsonObject('metadata', args.metadata)) ?? {};
+  const metadata = (await parseMetadata('metadata', args.metadata)) ?? {};
   return Object.fromEntries(
     Object.entries(metadata).map(([key, value]) => [
       `metadata[${key}]`,
@@ -216,7 +225,7 @@ export async function monitorRun(
   const runId = requireArg(positionals[1], usage);
   const run = await client.request<MonitorRun>(
     'GET',
-    monitorPath(id, `/runs/${encodeURIComponent(runId)}`)
+    monitorPath(id, `/runs/${pathSegment(runId)}`)
   );
   printOutput(run, args, formatMonitorRun);
 }
@@ -226,15 +235,19 @@ export async function monitorBatch(
   positionals: string[],
   args: CliArgs
 ): Promise<void> {
-  const action = parseEnum(
-    'action',
-    requireArg(positionals[0], 'monitor batch <delete|pause|unpause>'),
-    MONITOR_BATCH_ACTIONS
-  );
+  const usage = 'monitor batch <delete|pause|unpause>';
+  const action = requireArg(positionals[0], usage);
+  if (!(MONITOR_BATCH_ACTIONS as readonly string[]).includes(action)) {
+    throw new UsageError(
+      `Unknown batch action "${action}". Usage: exacli ${usage}`
+    );
+  }
+  // An empty metadata object would match every monitor, so it is no filter.
+  const metadata = await parseMetadata('metadata', args.metadata);
   const filter = nonEmpty({
     name: args.name,
     status: parseEnum('status', args.status, MONITOR_STATUSES),
-    metadata: await parseJsonObject('metadata', args.metadata),
+    metadata: metadata && nonEmpty(metadata),
   });
   if (!filter) {
     throw new UsageError(

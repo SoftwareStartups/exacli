@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import * as websets from '../src/commands/websets.js';
+import { withFetch } from './helpers/fetch-stub.js';
 import { mockClient, requestCall } from './helpers/mock-client.js';
+import { withTempFile } from './helpers/temp-file.js';
 
 let logSpy: ReturnType<typeof spyOn<Console, 'log'>>;
 
@@ -222,32 +224,35 @@ describe('webset-monitor', () => {
 
 describe('webset-import', () => {
   test('create sizes the CSV, creates the import, and uploads the file', async () => {
-    const path = `${import.meta.dir}/.tmp-import.csv`;
     const csv = 'url\nhttps://a.com\nhttps://b.com\n';
-    await Bun.write(path, csv);
     const uploads: Array<{ url: string; body: string }> = [];
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = (async (url: string, init: RequestInit) => {
-      uploads.push({ url, body: String(init.body) });
-      return new Response('', { status: 200 });
-    }) as unknown as typeof fetch;
     const m = mockClient(() => ({
       id: 'imp_1',
       uploadUrl: 'https://upload.example.com/imp_1',
     }));
-    try {
-      await websets.websetImports.create?.(m.client, [path], {
-        entity: 'company',
-        'identifier-column': '0',
-      });
-    } finally {
-      globalThis.fetch = originalFetch;
-      await Bun.file(path).delete();
-    }
+    await withFetch(
+      async (url, init) => {
+        uploads.push({
+          url: String(url),
+          body: await new Response(init?.body).text(),
+        });
+        return new Response('', { status: 200 });
+      },
+      () =>
+        withTempFile(
+          '.csv',
+          csv,
+          (path) =>
+            websets.websetImports.create?.(m.client, [path], {
+              entity: 'company',
+              'identifier-column': '0',
+            }) ?? Promise.resolve()
+        )
+    );
 
     expect(requestCall(m)[2]?.body).toEqual({
       format: 'csv',
-      size: csv.length,
+      size: new TextEncoder().encode(csv).length,
       count: 2,
       entity: { type: 'company' },
       csv: { identifier: 0 },
@@ -297,5 +302,140 @@ describe('webset-webhook, webset-event, and team', () => {
     expect(JSON.parse(String(logSpy.mock.calls.at(-1)?.[0]))).toMatchObject({
       ok: true,
     });
+  });
+});
+
+describe('websets validation', () => {
+  test('rejects dot-segment IDs instead of hitting the parent resource', async () => {
+    const m = ok();
+    await expect(
+      websets.websets['item-delete']?.(m.client, ['ws_1', '..'], {})
+    ).rejects.toThrow('Invalid ID ".."');
+    expect(m.request).not.toHaveBeenCalled();
+  });
+
+  test('count must be an integer', async () => {
+    await expect(
+      websets.websets.create?.(ok().client, [], { query: 'q', count: '2.5' })
+    ).rejects.toThrow('--count must be an integer');
+  });
+
+  test('webset-monitor create requires --count', async () => {
+    const m = ok();
+    await expect(
+      websets.websetMonitors.create?.(m.client, ['ws_1'], {
+        cron: '0 9 * * 1',
+        query: 'new fintechs',
+      })
+    ).rejects.toThrow('Missing --count');
+    expect(m.request).not.toHaveBeenCalled();
+  });
+
+  test('webset-monitor runs is paginated', async () => {
+    const m = ok();
+    await websets.websetMonitors.runs?.(m.client, ['mon_1'], {
+      limit: '5',
+      cursor: 'c1',
+    });
+    expect(requestCall(m)).toEqual([
+      'GET',
+      '/websets/v0/monitors/mon_1/runs',
+      { query: { limit: 5, cursor: 'c1' } },
+    ]);
+  });
+});
+
+describe('webset-import create edge cases', () => {
+  const create = (csv: string, respond: () => unknown) => {
+    const m = mockClient(respond);
+    return {
+      m,
+      run: () =>
+        withTempFile(
+          '.csv',
+          csv,
+          (path) =>
+            websets.websetImports.create?.(m.client, [path], {
+              entity: 'company',
+            }) ?? Promise.resolve()
+        ),
+    };
+  };
+
+  test('counts quoted multiline records once and sizes the file in bytes', async () => {
+    const csv = 'name,notes\n"Café","line one\nline two"\nAcme,ok\n';
+    const uploads: string[] = [];
+    const { m, run } = create(csv, () => ({
+      id: 'imp_1',
+      uploadUrl: 'https://upload.example.com/imp_1',
+    }));
+    await withFetch(async (_url, init) => {
+      uploads.push(await new Response(init?.body).text());
+      return new Response('');
+    }, run);
+    expect(requestCall(m)[2]?.body).toMatchObject({
+      size: new TextEncoder().encode(csv).length,
+      count: 2,
+    });
+    expect(uploads).toEqual([csv]);
+  });
+
+  test('uploads non-UTF-8 bytes unchanged', async () => {
+    const bytes = new Uint8Array([0x6e, 0x0a, 0x63, 0x61, 0x66, 0xe9, 0x0a]);
+    const m = mockClient(() => ({
+      id: 'imp_1',
+      uploadUrl: 'https://upload.example.com/imp_1',
+    }));
+    let uploaded = new Uint8Array();
+    await withFetch(
+      async (_url, init) => {
+        uploaded = new Uint8Array(await new Response(init?.body).arrayBuffer());
+        return new Response('');
+      },
+      () =>
+        withTempFile(
+          '.csv',
+          bytes,
+          (path) =>
+            websets.websetImports.create?.(m.client, [path], {
+              entity: 'company',
+            }) ?? Promise.resolve()
+        )
+    );
+    expect(uploaded).toEqual(bytes);
+  });
+
+  test('fails when the API returns no upload URL', async () => {
+    const { run } = create('url\nhttps://a.com\n', () => ({ id: 'imp_1' }));
+    await expect(run()).rejects.toThrow(
+      'Import imp_1 created but no upload URL returned'
+    );
+  });
+
+  test('names the import when the upload fails', async () => {
+    const { run } = create('url\nhttps://a.com\n', () => ({
+      id: 'imp_1',
+      uploadUrl: 'https://upload.example.com/imp_1',
+    }));
+    await withFetch(
+      async () => new Response('', { status: 500 }),
+      () =>
+        expect(run()).rejects.toThrow(
+          'Import imp_1 created but the CSV upload failed (HTTP 500)'
+        )
+    );
+  });
+
+  test('countCsvRecords ignores blank lines and newlines in quotes', () => {
+    expect(websets.countCsvRecords('a\n\n"b\nc"\nd')).toBe(3);
+    expect(websets.countCsvRecords('')).toBe(0);
+  });
+
+  test('countCsvRecords ignores quotes inside unquoted fields', () => {
+    expect(websets.countCsvRecords('item,size\npipe,5"\nrod,2\n')).toBe(3);
+  });
+
+  test('countCsvRecords handles CR-only line endings', () => {
+    expect(websets.countCsvRecords('a\rb\rc')).toBe(3);
   });
 });

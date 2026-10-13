@@ -2,6 +2,8 @@
  * CLI argument shape and Exa API enums/response types (exa-spec.yaml 2.0.0).
  */
 
+import type { ExaClient } from '../client.js';
+
 export const SEARCH_TYPES = [
   'auto',
   'fast',
@@ -49,6 +51,7 @@ export const AGENT_EFFORTS = [
   'ultra',
 ] as const;
 export const MONITOR_STATUSES = ['active', 'paused', 'disabled'] as const;
+export const MONITOR_UPDATE_STATUSES = ['active', 'paused'] as const;
 export const MONITOR_BATCH_ACTIONS = ['delete', 'pause', 'unpause'] as const;
 
 export const WEBSET_ENTITY_TYPES = [
@@ -59,6 +62,8 @@ export const WEBSET_ENTITY_TYPES = [
   'custom',
 ] as const;
 export const WEBSET_SEARCH_BEHAVIORS = ['override', 'append'] as const;
+export const WEBSET_MONITOR_STATUSES = ['enabled', 'disabled'] as const;
+export const BOOLEAN_STRINGS = ['true', 'false'] as const;
 export const ENRICHMENT_FORMATS = [
   'text',
   'date',
@@ -72,110 +77,125 @@ export const ENRICHMENT_FORMATS = [
 export const DYNAMIC_HIGHLIGHTS_BETA = 'dynamic-highlights-2026-08-28';
 export const BATCHES_BETA = 'batches-2026-06-06';
 
+export const BOOLEAN_FLAGS = [
+  'json',
+  'help',
+  'version',
+  'skip-validation',
+  'moderation',
+  'stream',
+  'exclude-source-domain',
+  'text',
+  'include-html-tags',
+  'highlights',
+  'dynamic-highlights',
+  'summary',
+  'wait',
+  'remove-schedule',
+  'execute',
+  'recall',
+  'with-items',
+] as const;
+
+export const MULTIPLE_FLAGS = ['criterion', 'enrichment'] as const;
+
+export const STRING_FLAGS = [
+  'api-key',
+  'num-results',
+  'type',
+  'category',
+  'include-domains',
+  'exclude-domains',
+  'include-text',
+  'exclude-text',
+  'start-date',
+  'end-date',
+  'user-location',
+  'latitude',
+  'longitude',
+  'additional-queries',
+  'objective',
+  'system-prompt',
+  'output-schema',
+  'user-id',
+  'compliance',
+  'max-characters',
+  'text-verbosity',
+  'include-sections',
+  'exclude-sections',
+  'highlights-query',
+  'highlights-max-characters',
+  'highlights-verbosity',
+  'summary-query',
+  'summary-schema',
+  'max-age-hours',
+  'livecrawl',
+  'livecrawl-timeout',
+  'snapshot-as-of',
+  'subpages',
+  'subpage-target',
+  'extras-links',
+  'extras-image-links',
+  'extras-rich-links',
+  'extras-rich-image-links',
+  'extras-code-blocks',
+  'model',
+  'effort',
+  'input',
+  'previous-run',
+  'data-sources',
+  'max-cost',
+  'max-duration',
+  'poll-interval',
+  'timeout',
+  'name',
+  'status',
+  'query',
+  'period',
+  'webhook-url',
+  'webhook-events',
+  'metadata',
+  'limit',
+  'cursor',
+  'body',
+  'count',
+  'entity',
+  'entity-description',
+  'title',
+  'external-id',
+  'expand',
+  'source-id',
+  'behavior',
+  'description',
+  'format',
+  'options',
+  'cron',
+  'timezone',
+  'events',
+  'event-type',
+  'successful',
+  'types',
+  'created-after',
+  'created-before',
+  'identifier-column',
+  'webset',
+] as const;
+
 /** Parsed CLI flags. Every command reads the subset it supports. */
-export interface CliArgs {
-  json?: boolean;
-  // search filters
-  'num-results'?: string;
-  type?: string;
-  category?: string;
-  'include-domains'?: string;
-  'exclude-domains'?: string;
-  'include-text'?: string;
-  'exclude-text'?: string;
-  'start-date'?: string;
-  'end-date'?: string;
-  'user-location'?: string;
-  latitude?: string;
-  longitude?: string;
-  moderation?: boolean;
-  'additional-queries'?: string;
-  objective?: string;
-  'system-prompt'?: string;
-  'output-schema'?: string;
-  stream?: boolean;
-  'user-id'?: string;
-  compliance?: string;
-  'exclude-source-domain'?: boolean;
-  // contents
-  text?: boolean;
-  'max-characters'?: string;
-  'include-html-tags'?: boolean;
-  'text-verbosity'?: string;
-  'include-sections'?: string;
-  'exclude-sections'?: string;
-  highlights?: boolean;
-  'highlights-query'?: string;
-  'highlights-max-characters'?: string;
-  'highlights-verbosity'?: string;
-  'dynamic-highlights'?: boolean;
-  summary?: boolean;
-  'summary-query'?: string;
-  'summary-schema'?: string;
-  'max-age-hours'?: string;
-  livecrawl?: string;
-  'livecrawl-timeout'?: string;
-  'snapshot-as-of'?: string;
-  subpages?: string;
-  'subpage-target'?: string;
-  'extras-links'?: string;
-  'extras-image-links'?: string;
-  'extras-rich-links'?: string;
-  'extras-rich-image-links'?: string;
-  'extras-code-blocks'?: string;
-  // answer
-  model?: string;
-  // agent
-  effort?: string;
-  input?: string;
-  'previous-run'?: string;
-  'data-sources'?: string;
-  'max-cost'?: string;
-  'max-duration'?: string;
-  wait?: boolean;
-  'poll-interval'?: string;
-  timeout?: string;
-  // monitors and batches
-  name?: string;
-  status?: string;
-  query?: string;
-  period?: string;
-  'remove-schedule'?: boolean;
-  'webhook-url'?: string;
-  'webhook-events'?: string;
-  metadata?: string;
-  execute?: boolean;
-  // websets
-  body?: string;
-  count?: string;
-  entity?: string;
-  'entity-description'?: string;
-  criterion?: string[];
-  enrichment?: string[];
-  title?: string;
-  'external-id'?: string;
-  recall?: boolean;
-  expand?: string;
-  'with-items'?: boolean;
-  'source-id'?: string;
-  behavior?: string;
-  description?: string;
-  format?: string;
-  options?: string;
-  cron?: string;
-  timezone?: string;
-  events?: string;
-  'event-type'?: string;
-  successful?: string;
-  types?: string;
-  'created-after'?: string;
-  'created-before'?: string;
-  'identifier-column'?: string;
-  webset?: string;
-  // pagination
-  limit?: string;
-  cursor?: string;
-}
+export type CliArgs = {
+  [K in (typeof BOOLEAN_FLAGS)[number]]?: boolean;
+} & {
+  [K in (typeof STRING_FLAGS)[number]]?: string;
+} & {
+  [K in (typeof MULTIPLE_FLAGS)[number]]?: string[];
+};
+
+/** Shared signature of every command handler. */
+export type Handler = (
+  client: ExaClient,
+  positionals: string[],
+  args: CliArgs
+) => Promise<void>;
 
 export interface Citation {
   title?: string | null;
