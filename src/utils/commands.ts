@@ -43,6 +43,23 @@ export function logStatus(message: string): void {
   console.error(sanitize(message));
 }
 
+function isBrokenPipe(error: unknown): boolean {
+  return (error as { code?: unknown } | null)?.code === 'EPIPE';
+}
+
+/**
+ * Exits quietly when the reader of stdout goes away (for example
+ * `exacli answer ... | head`), instead of printing a stack trace.
+ */
+export function exitOnBrokenPipe(
+  stream: NodeJS.EventEmitter = process.stdout
+): void {
+  stream.on('error', (error: unknown) => {
+    if (isBrokenPipe(error)) process.exit(0);
+    throw error;
+  });
+}
+
 function errorCode(error: unknown): string {
   if (error instanceof UsageError) return 'USAGE_ERROR';
   if (error instanceof ExaApiError) return error.tag ?? `HTTP_${error.status}`;

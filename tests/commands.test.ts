@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
+import { EventEmitter } from 'node:events';
 import { ExaApiError, RequestTimeoutError } from '../src/client.js';
 import * as agent from '../src/commands/agent.js';
 import { answer } from '../src/commands/answer.js';
@@ -11,7 +12,11 @@ import {
   BATCHES_BETA,
   DYNAMIC_HIGHLIGHTS_BETA,
 } from '../src/commands/types.js';
-import { runCommand, sanitize } from '../src/utils/commands.js';
+import {
+  exitOnBrokenPipe,
+  runCommand,
+  sanitize,
+} from '../src/utils/commands.js';
 import { UsageError } from '../src/utils/validation.js';
 import { withFetch } from './helpers/fetch-stub.js';
 import { mockClient, requestCall } from './helpers/mock-client.js';
@@ -677,6 +682,33 @@ describe('runCommand', () => {
       restore();
     }
     expect(errorSpy).toHaveBeenCalledWith('Error: bad flag');
+  });
+});
+
+describe('exitOnBrokenPipe', () => {
+  const pipeError = (code: string) =>
+    Object.assign(new Error('write failed'), { code });
+
+  test('exits 0 when the stdout reader goes away', () => {
+    const stdout = new EventEmitter();
+    exitOnBrokenPipe(stdout);
+    const restore = stubProcessExit();
+    try {
+      expect(() => stdout.emit('error', pipeError('EPIPE'))).toThrow(
+        'process.exit called'
+      );
+      expect(process.exit).toHaveBeenCalledWith(0);
+    } finally {
+      restore();
+    }
+  });
+
+  test('rethrows other stdout errors', () => {
+    const stdout = new EventEmitter();
+    exitOnBrokenPipe(stdout);
+    expect(() => stdout.emit('error', pipeError('EIO'))).toThrow(
+      'write failed'
+    );
   });
 });
 
