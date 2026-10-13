@@ -22,7 +22,7 @@ import {
 } from './commands/types.js';
 import * as websets from './commands/websets.js';
 import { COMMAND_HELP, MAIN_HELP } from './help.js';
-import { runCommand } from './utils/commands.js';
+import { exitOnBrokenPipe, runCommand } from './utils/commands.js';
 import { UsageError } from './utils/validation.js';
 
 const COMMANDS: Record<string, Handler | Record<string, Handler>> = {
@@ -102,6 +102,7 @@ function exitWithUsage(message: string, help: string, json?: boolean): never {
 }
 
 async function main(): Promise<void> {
+  exitOnBrokenPipe();
   const argv = Bun.argv.slice(2);
   let args: CliArgs;
   let positionalArgs: string[];

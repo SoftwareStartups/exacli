@@ -36,7 +36,7 @@ Handlers share the signature `(client, positionals, args: CliArgs) => Promise<vo
 
 - **options.ts** — `buildContents` (returns `contents` plus required beta tokens), `buildResultFilters`, `buildUserLocation`, `paginationQuery`, `compact`/`nonEmpty`
 - **validation.ts** — `parseNumber`/`parseInteger`/`parseEnum`/`parseJsonObject` (inline JSON or `@file`), `parseMetadata` (string values), `pathSegment` (encodes IDs, rejects `.`/`..`), `readTextFile`, `requireArg`. All throw `UsageError`
-- **commands.ts** — `printOutput` (envelope or markdown), `printText`/`sanitize` (strip terminal control characters from human output), `printStreamItem`, `logStatus` (stderr), `runCommand`
+- **commands.ts** — `printOutput` (envelope or markdown), `printText`/`sanitize` (strip terminal control characters from human output), `printStreamItem`, `logStatus` (stderr), `runCommand`, `exitOnBrokenPipe` (exit 0 when stdout closes early, e.g. piped to `head`)
 - **stream.ts** — Renders completion chunks from `/answer` and `/search` streams; a stream without `[DONE]` is an error
 
 ## Key Patterns
