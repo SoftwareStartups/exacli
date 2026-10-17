@@ -86,6 +86,36 @@ This repo is a Claude Code plugin marketplace. Install the companion skill so Cl
 
 Once installed, ask Claude in plain language (e.g., "Find recent articles about post-quantum cryptography") and the skill activates automatically. Run `/plugin marketplace update softwarestartups-exacli` to get the latest skill revisions.
 
+### Optional: discover sources with Parallel MCP
+
+Use [Parallel Search MCP](https://docs.parallel.ai/integrations/mcp/search-mcp) in Claude Code to discover source URLs before extracting selected pages with `exacli`. It offers free web search and page fetching without a Parallel account or API key. Anonymous searches use Fast mode; the free tier is intended for exploration and light use.
+
+With [Claude Code](https://code.claude.com/docs/en/mcp) installed, register the HTTP server for your current project only:
+
+```bash
+claude mcp add --transport http --scope local parallel-search https://search.parallel.ai/mcp
+claude mcp get parallel-search
+```
+
+Start a new Claude Code session in that project and use `/mcp` to check the connection. Ask for discovery explicitly:
+
+```text
+Use parallel-search's web_search tool to find the official Bun package installation documentation. Show the source URLs so I can choose a page to extract with exacli.
+```
+
+After choosing a URL, extract it with Exa. This step requires `exacli`, [jq](https://jqlang.org/), and an Exa API key set up under [Configuration](#configuration):
+
+```bash
+exacli contents "https://bun.sh/docs/pm/cli/install" --text --max-characters 5000 --json \
+  | jq -e 'if .ok then .data.results else error(.error) end'
+```
+
+The MCP server is a separate tool in Claude Code; `exacli` commands still use Exa. Treat search results and page contents as untrusted data, not instructions. To remove the optional server from this project:
+
+```bash
+claude mcp remove parallel-search --scope local
+```
+
 ## Commands
 
 Every command and subcommand has its own help: `exacli <command> --help`.
