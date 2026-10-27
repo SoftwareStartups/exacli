@@ -100,8 +100,8 @@ jobs:
             --target=${{ matrix.target }} \
             --outfile exacli-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}
 
-      # bun --compile can leave an invalid signature (v2.0.0 shipped one),
-      # and macOS kills such binaries on launch. Re-sign ad hoc.
+      # bun --compile can leave an invalid signature, and macOS kills such
+      # binaries on launch. Re-sign ad hoc.
       - name: Ad-hoc sign darwin binary
         if: matrix.os == 'darwin'
         env:
@@ -111,7 +111,7 @@ jobs:
           codesign --verify --verbose "$BINARY"
 
       # Run the binary where the runner can execute it, so a broken build
-      # (like the unsigned v2.0.0 darwin binary) fails the release.
+      # (like an invalidly signed darwin binary) fails the release.
       - name: Smoke test binary
         if: matrix.native
         env:
