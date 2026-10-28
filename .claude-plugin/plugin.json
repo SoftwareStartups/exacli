@@ -1,7 +1,7 @@
 {
   "name": "exacli",
   "description": "Exa AI search API via CLI. Activate when user wants to search the web, find information, extract content from websites, get AI answers with sources, run deep research or list-building with Exa Agent, build verified entity lists with Websets, or set up recurring search monitors.",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "author": {
     "name": "SoftwareStartups"
   },

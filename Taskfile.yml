@@ -50,6 +50,10 @@ tasks:
     cmds:
       - mkdir -p dist
       - bun build src/index.ts --compile --outfile dist/exacli
+      - cmd: codesign --force --sign - dist/exacli
+        platforms: [darwin]
+      - cmd: codesign --verify --verbose dist/exacli
+        platforms: [darwin]
 
   compile:all:
     desc: Compile for all platforms
@@ -61,6 +65,10 @@ tasks:
       - bun build src/index.ts --compile --target=bun-darwin-arm64 --outfile dist/exacli-darwin-arm64
       - bun build src/index.ts --compile --target=bun-windows-x64 --outfile dist/exacli-windows-x64.exe
       - bun build src/index.ts --compile --target=bun-windows-arm64 --outfile dist/exacli-windows-arm64.exe
+      - cmd: codesign --force --sign - dist/exacli-darwin-x64 dist/exacli-darwin-arm64
+        platforms: [darwin]
+      - cmd: codesign --verify --verbose dist/exacli-darwin-x64 dist/exacli-darwin-arm64
+        platforms: [darwin]
 
   ci:
     desc: Run full CI pipeline locally
